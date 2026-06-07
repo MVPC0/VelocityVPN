@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Link } from 'react-router';
+import { Menu, X, LayoutDashboard } from 'lucide-react';
 import Button from './Button';
+import { useAuth } from '@/hooks/useAuth';
 
 const navLinks = [
   { label: 'How It Works', href: '#speed-steps' },
@@ -14,6 +16,7 @@ const navLinks = [
 const Navigation: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -89,11 +92,21 @@ const Navigation: React.FC = () => {
 
           {/* CTA + Hamburger */}
           <div className="flex items-center gap-4">
-            <div className="hidden sm:block">
-              <Button variant="primary" size="sm" href="#cta">
-                Get Velocity
-              </Button>
-            </div>
+            {isAuthenticated ? (
+              <Link
+                to="/dashboard"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#E85D4E] hover:text-white transition-colors"
+              >
+                <LayoutDashboard size={16} />
+                Dashboard
+              </Link>
+            ) : (
+              <div className="hidden sm:block">
+                <Button variant="primary" size="sm" href="#cta">
+                  Get Velocity
+                </Button>
+              </div>
+            )}
             <button
               className="lg:hidden text-white p-2"
               onClick={() => setMenuOpen(true)}
@@ -149,6 +162,18 @@ const Navigation: React.FC = () => {
               </a>
             ))}
           </div>
+
+          {/* Dashboard link in menu */}
+          {isAuthenticated && (
+            <Link
+              to="/dashboard"
+              onClick={() => setMenuOpen(false)}
+              className="mt-6 inline-flex items-center gap-2 text-[#E85D4E] hover:text-white transition-colors font-['Archivo'] text-xl"
+            >
+              <LayoutDashboard size={20} />
+              Dashboard
+            </Link>
+          )}
 
           {/* Social Links */}
           <div className="absolute bottom-8 left-8 md:left-16 lg:left-24 flex gap-6">
