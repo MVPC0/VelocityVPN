@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as THREE from 'three';
-import Button from '@/components/Button';
 import CountUp from 'react-countup';
 
 // Icosahedron subdivision for globe dots
@@ -447,12 +446,32 @@ const HeroSection: React.FC = () => {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 mt-10">
-          <Button variant="primary" size="lg" href="#cta">
+          <a
+            href="#/login"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.hash = '/login';
+            }}
+            className="inline-flex items-center justify-center font-medium transition-all duration-300
+              px-12 py-5 text-sm uppercase tracking-[0.04em]
+              bg-[#E85D4E] text-white rounded-lg hover:bg-[#D44A3C] hover:scale-[1.02] active:scale-[0.98]
+              no-underline cursor-pointer"
+            role="button"
+          >
             Start Gaming Faster
-          </Button>
-          <Button variant="secondary" size="lg" href="#speed-steps">
+          </a>
+          <button
+            onClick={() => {
+              const el = document.getElementById('speed-steps');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="inline-flex items-center justify-center font-medium transition-all duration-300
+              px-12 py-5 text-sm uppercase tracking-[0.04em]
+              bg-transparent border border-[rgba(255,255,255,0.2)] text-white rounded-lg
+              hover:border-[#E85D4E] hover:text-[#E85D4E]"
+          >
             See How It Works
-          </Button>
+          </button>
         </div>
 
         {/* Stats Row */}

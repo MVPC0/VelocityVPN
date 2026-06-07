@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { Menu, X, LayoutDashboard } from 'lucide-react';
-import Button from './Button';
 import { useAuth } from '@/hooks/useAuth';
 
 const navLinks = [
@@ -76,37 +75,25 @@ const Navigation: React.FC = () => {
           {/* Desktop Nav Links */}
           <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
-              <a
+              <button
                 key={link.href}
-                href={link.href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  scrollTo(link.href);
-                }}
-                className="text-sm text-[#9CA3AF] hover:text-white transition-colors duration-200"
+                onClick={() => scrollTo(link.href)}
+                className="text-sm text-[#9CA3AF] hover:text-white transition-colors duration-200 bg-transparent border-none cursor-pointer"
               >
                 {link.label}
-              </a>
+              </button>
             ))}
           </div>
 
           {/* CTA + Hamburger */}
           <div className="flex items-center gap-4">
-            {isAuthenticated ? (
-              <Link
-                to="/dashboard"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#E85D4E] hover:text-white transition-colors"
-              >
-                <LayoutDashboard size={16} />
-                Dashboard
-              </Link>
-            ) : (
-              <div className="hidden sm:block">
-                <Button variant="primary" size="sm" href="#cta">
-                  Get Velocity
-                </Button>
-              </div>
-            )}
+            <Link
+              to="/dashboard"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#E85D4E] hover:text-white transition-colors"
+            >
+              <LayoutDashboard size={16} />
+              Dashboard
+            </Link>
             <button
               className="lg:hidden text-white p-2"
               onClick={() => setMenuOpen(true)}
@@ -139,14 +126,10 @@ const Navigation: React.FC = () => {
           {/* Menu Items */}
           <div className="space-y-4">
             {navLinks.map((link, i) => (
-              <a
+              <button
                 key={link.href}
-                href={link.href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  scrollTo(link.href);
-                }}
-                className={`block font-['Archivo'] text-white transition-all duration-500 hover:text-[#E85D4E] ${
+                onClick={() => scrollTo(link.href)}
+                className={`block font-['Archivo'] text-white transition-all duration-500 hover:text-[#E85D4E] bg-transparent border-none cursor-pointer text-left ${
                   menuOpen
                     ? 'opacity-100 translate-x-0'
                     : 'opacity-0 -translate-x-8'
@@ -159,7 +142,7 @@ const Navigation: React.FC = () => {
                 }}
               >
                 {link.label}
-              </a>
+              </button>
             ))}
           </div>
 

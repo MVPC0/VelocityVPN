@@ -8,7 +8,6 @@ import {
   bigint,
   int,
   boolean,
-  json,
 } from "drizzle-orm/mysql-core";
 
 // Users table (from auth feature)

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createRouter, publicQuery, authedQuery, authedMutation } from "@/middleware";
-import { getDb } from "@/queries/connection";
-import { vpnServers, userConnections, pingResults } from "@/db/schema";
+import { createRouter, publicQuery, authedQuery, authedMutation } from "../middleware";
+import { getDb } from "../queries/connection";
+import { vpnServers, userConnections, pingResults } from "../../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 

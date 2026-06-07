@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import SectionHeader from '@/components/SectionHeader';
 import Button from '@/components/Button';
 import CountUp from 'react-countup';
+import { useClosestServer } from '@/hooks/useGeoLocation';
+import type { ServerLocation } from '@/hooks/useGeoLocation';
+import { MapPin, Zap } from 'lucide-react';
 
 type PingState = 'idle' | 'connecting' | 'testing' | 'result';
 
@@ -10,20 +13,30 @@ interface Server {
   flag: string;
   x: number;
   y: number;
-  pingMin: number;
-  pingMax: number;
-  jitter: string;
+  endpoint: string;
+  id: number;
 }
 
+const SERVER_LOCATIONS: ServerLocation[] = [
+  { id: 1, city: 'New York', countryCode: 'US', lat: 40.7128, lng: -74.0060 },
+  { id: 2, city: 'London', countryCode: 'GB', lat: 51.5074, lng: -0.1278 },
+  { id: 3, city: 'Frankfurt', countryCode: 'DE', lat: 50.1109, lng: 8.6821 },
+  { id: 4, city: 'Tokyo', countryCode: 'JP', lat: 35.6762, lng: 139.6503 },
+  { id: 5, city: 'Singapore', countryCode: 'SG', lat: 1.3521, lng: 103.8198 },
+  { id: 6, city: 'Sydney', countryCode: 'AU', lat: -33.8688, lng: 151.2093 },
+  { id: 7, city: 'Sao Paulo', countryCode: 'BR', lat: -23.5505, lng: -46.6333 },
+  { id: 8, city: 'Dubai', countryCode: 'AE', lat: 25.2048, lng: 55.2708 },
+];
+
 const servers: Server[] = [
-  { name: 'New York', flag: '🇺🇸', x: 22, y: 38, pingMin: 15, pingMax: 25, jitter: '1-3ms' },
-  { name: 'London', flag: '🇬🇧', x: 47, y: 30, pingMin: 20, pingMax: 30, jitter: '2-4ms' },
-  { name: 'Frankfurt', flag: '🇩🇪', x: 50, y: 32, pingMin: 18, pingMax: 28, jitter: '1-3ms' },
-  { name: 'Tokyo', flag: '🇯🇵', x: 84, y: 38, pingMin: 35, pingMax: 50, jitter: '3-5ms' },
-  { name: 'Singapore', flag: '🇸🇬', x: 76, y: 58, pingMin: 40, pingMax: 55, jitter: '3-6ms' },
-  { name: 'Sydney', flag: '🇦🇺', x: 87, y: 74, pingMin: 50, pingMax: 70, jitter: '4-7ms' },
-  { name: 'Sao Paulo', flag: '🇧🇷', x: 30, y: 74, pingMin: 60, pingMax: 80, jitter: '5-8ms' },
-  { name: 'Dubai', flag: '🇦🇪', x: 60, y: 47, pingMin: 45, pingMax: 65, jitter: '4-6ms' },
+  { id: 1, name: 'New York', flag: '🇺🇸', x: 22, y: 38, endpoint: 'https://www.google.com/favicon.ico' },
+  { id: 2, name: 'London', flag: '🇬🇧', x: 47, y: 30, endpoint: 'https://www.bbc.co.uk/favicon.ico' },
+  { id: 3, name: 'Frankfurt', flag: '🇩🇪', x: 50, y: 32, endpoint: 'https://www.bundesregierung.de/favicon.ico' },
+  { id: 4, name: 'Tokyo', flag: '🇯🇵', x: 84, y: 38, endpoint: 'https://www.yahoo.co.jp/favicon.ico' },
+  { id: 5, name: 'Singapore', flag: '🇸🇬', x: 76, y: 58, endpoint: 'https://www.gov.sg/favicon.ico' },
+  { id: 6, name: 'Sydney', flag: '🇦🇺', x: 87, y: 74, endpoint: 'https://www.gov.au/favicon.ico' },
+  { id: 7, name: 'Sao Paulo', flag: '🇧🇷', x: 30, y: 74, endpoint: 'https://www.gov.br/favicon.ico' },
+  { id: 8, name: 'Dubai', flag: '🇦🇪', x: 60, y: 47, endpoint: 'https://www.google.ae/favicon.ico' },
 ];
 
 function getPingColor(ping: number): string {
@@ -38,23 +51,62 @@ function getPingLabel(ping: number): string {
   return 'Fair';
 }
 
+// Real ping measurement using image load timing
+function measurePing(endpoint: string): Promise<number> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const start = performance.now();
+    const cacheBuster = `?t=${Date.now()}_${Math.random()}`;
+
+    const cleanup = () => {
+      const elapsed = Math.round(performance.now() - start);
+      resolve(Math.max(1, elapsed));
+    };
+
+    img.onload = cleanup;
+    img.onerror = cleanup;
+
+    setTimeout(() => {
+      img.src = '';
+      cleanup();
+    }, 8000);
+
+    img.src = endpoint + cacheBuster;
+  });
+}
+
 const PingTestSection: React.FC = () => {
+  const { closestServer, distance, loading: geoLoading } = useClosestServer(SERVER_LOCATIONS);
   const [state, setState] = useState<PingState>('idle');
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
   const [pingResult, setPingResult] = useState<number>(0);
   const [progress, setProgress] = useState(0);
   const [flashingPing, setFlashingPing] = useState<number | null>(null);
   const [lineProgress, setLineProgress] = useState(0);
+  const [userCity, setUserCity] = useState<string>('');
   const sparkleCanvasRef = useRef<HTMLCanvasElement>(null);
   const timeoutsRef = useRef<number[]>([]);
 
-  const clearTimeouts = useCallback(() => {
+  // Auto-run ping for closest server on load
+  useEffect(() => {
+    if (closestServer && !selectedServer && state === 'idle') {
+      const server = servers.find(s => s.id === closestServer.id);
+      if (server) {
+        setUserCity(`Detected near ${closestServer.city}`);
+        // Auto-run the ping test for closest server
+        runPingTest(server);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closestServer]);
+
+  const clearAllTimeouts = useCallback(() => {
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
   }, []);
 
-  const runPingTest = useCallback((server: Server) => {
-    clearTimeouts();
+  const runPingTest = useCallback(async (server: Server) => {
+    clearAllTimeouts();
     setSelectedServer(server);
     setState('connecting');
     setProgress(0);
@@ -62,11 +114,10 @@ const PingTestSection: React.FC = () => {
     setPingResult(0);
 
     // Animate line drawing
-    const lineDuration = 800;
     const lineStart = Date.now();
     const animateLine = () => {
       const elapsed = Date.now() - lineStart;
-      const p = Math.min(1, elapsed / lineDuration);
+      const p = Math.min(1, elapsed / 800);
       setLineProgress(p);
       if (p < 1) requestAnimationFrame(animateLine);
     };
@@ -76,7 +127,7 @@ const PingTestSection: React.FC = () => {
     const t1 = window.setTimeout(() => {
       setState('testing');
 
-      // Flash random pings
+      // Flash random pings during test
       const flashInterval = window.setInterval(() => {
         setFlashingPing(Math.floor(Math.random() * 180) + 20);
       }, 80);
@@ -95,24 +146,30 @@ const PingTestSection: React.FC = () => {
       };
       requestAnimationFrame(animateProgress);
 
-      // Phase 2: Result (after 2s of testing)
-      const t2 = window.setTimeout(() => {
-        const result = Math.floor(Math.random() * (server.pingMax - server.pingMin + 1)) + server.pingMin;
+      // Phase 2: Real ping measurement
+      const t2 = window.setTimeout(async () => {
+        const samples: number[] = [];
+        for (let i = 0; i < 3; i++) {
+          const latency = await measurePing(server.endpoint);
+          samples.push(latency);
+          if (i < 2) await new Promise(r => setTimeout(r, 100));
+        }
+
+        const result = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+
         setFlashingPing(null);
         setPingResult(result);
         setState('result');
-
-        // Sparkle effect
-        drawSparkles();
+        drawSparkles(result);
       }, 2000);
 
       timeoutsRef.current.push(t2);
     }, 500);
 
     timeoutsRef.current.push(t1);
-  }, [clearTimeouts]);
+  }, [clearAllTimeouts]);
 
-  const drawSparkles = useCallback(() => {
+  const drawSparkles = useCallback((ping: number) => {
     const canvas = sparkleCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -137,7 +194,7 @@ const PingTestSection: React.FC = () => {
       });
     }
 
-    const color = getPingColor(pingResult);
+    const color = getPingColor(ping);
 
     const animate = () => {
       ctx.clearRect(0, 0, 200, 200);
@@ -163,11 +220,13 @@ const PingTestSection: React.FC = () => {
     };
 
     animate();
-  }, [pingResult]);
+  }, []);
 
   useEffect(() => {
-    return () => clearTimeouts();
-  }, [clearTimeouts]);
+    return () => clearAllTimeouts();
+  }, [clearAllTimeouts]);
+
+  const isClosest = (server: Server) => closestServer?.id === server.id;
 
   return (
     <section
@@ -178,14 +237,34 @@ const PingTestSection: React.FC = () => {
         <SectionHeader
           eyebrow="PING TEST"
           title="Test Your Connection"
-          subtitle="Select a server to see what your ping could look like with VelocityVPN."
+          subtitle="We auto-detect your location and find the closest server for the best ping."
         />
 
-        <div className="mt-12 flex flex-col lg:flex-row gap-8">
+        {/* Location detection status */}
+        <div className="mt-4 text-center">
+          {geoLoading ? (
+            <div className="inline-flex items-center gap-2 text-sm text-[#6B7280]">
+              <MapPin size={14} className="animate-pulse" />
+              Detecting your location...
+            </div>
+          ) : closestServer ? (
+            <div className="inline-flex items-center gap-2 text-sm text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-4 py-2 rounded-full">
+              <Zap size={14} />
+              Closest server: <strong>{closestServer.city}</strong> ({distance}mi away)
+              <span className="text-[#6B7280] ml-1">— auto-testing now</span>
+            </div>
+          ) : (
+            <div className="text-sm text-[#6B7280]">
+              <MapPin size={14} className="inline mr-1" />
+              Tap a server below to test your ping
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 flex flex-col lg:flex-row gap-8">
           {/* Map */}
           <div className="lg:w-[60%] relative">
             <div className="relative w-full aspect-[4/3] bg-[#050507] rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden">
-              {/* Grid lines */}
               <svg className="absolute inset-0 w-full h-full opacity-[0.03]" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -208,7 +287,7 @@ const PingTestSection: React.FC = () => {
                 <span className="font-['JetBrains_Mono'] text-[10px] text-[#6B7280] mt-1 block text-center">You</span>
               </div>
 
-              {/* Connecting line SVG */}
+              {/* Connecting line */}
               {selectedServer && (
                 <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }}>
                   <line
@@ -240,12 +319,19 @@ const PingTestSection: React.FC = () => {
                   onClick={() => runPingTest(server)}
                   aria-label={`Test ping to ${server.name}`}
                 >
-                  {/* Touch target - invisible larger area for mobile */}
                   <div className="w-10 h-10 md:w-6 md:h-6 flex items-center justify-center relative">
+                    {/* Closest badge */}
+                    {isClosest(server) && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[8px] font-bold text-[#4ADE80] bg-[rgba(74,222,128,0.2)] px-1.5 py-0.5 rounded-full whitespace-nowrap border border-[rgba(74,222,128,0.3)]">
+                        CLOSEST
+                      </span>
+                    )}
                     <div
                       className={`w-4 h-4 md:w-3 md:h-3 rounded-full border-2 transition-all ${
                         selectedServer?.name === server.name
                           ? 'bg-[#E85D4E] border-white shadow-[0_0_12px_rgba(232,93,78,0.6)] scale-125'
+                          : isClosest(server)
+                          ? 'bg-[#4ADE80] border-white shadow-[0_0_8px_rgba(74,222,128,0.5)]'
                           : 'bg-[#E85D4E] border-white/60'
                       }`}
                     >
@@ -254,8 +340,9 @@ const PingTestSection: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  {/* Label - always visible on mobile, hover on desktop */}
-                  <span className="absolute top-6 left-1/2 -translate-x-1/2 font-['JetBrains_Mono'] text-[9px] md:text-[10px] text-[#9CA3AF] whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-[rgba(5,5,7,0.8)] px-1.5 py-0.5 rounded">
+                  <span className={`absolute top-6 left-1/2 -translate-x-1/2 font-['JetBrains_Mono'] text-[9px] md:text-[10px] whitespace-nowrap transition-opacity bg-[rgba(5,5,7,0.8)] px-1.5 py-0.5 rounded ${
+                    isClosest(server) ? 'text-[#4ADE80] opacity-100' : 'text-[#9CA3AF] opacity-100 md:opacity-0 md:group-hover:opacity-100'
+                  }`}>
                     {server.flag} {server.name}
                   </span>
                 </button>
@@ -270,18 +357,24 @@ const PingTestSection: React.FC = () => {
                 <div className="py-6">
                   <div className="text-center mb-6">
                     <div className="text-4xl mb-3">🌐</div>
-                    <p className="text-[#9CA3AF]">Tap a server to test your ping</p>
+                    <p className="text-[#9CA3AF]">
+                      {closestServer ? `Auto-detecting closest server...` : 'Tap a server to test your ping'}
+                    </p>
                   </div>
-                  {/* Quick-select server pills */}
                   <div className="flex flex-wrap gap-2 justify-center">
                     {servers.map((server) => (
                       <button
                         key={server.name}
                         onClick={() => runPingTest(server)}
-                        className="px-4 py-2 bg-[#111118] border border-[rgba(255,255,255,0.08)] rounded-full text-sm text-[#D1D5DB] hover:border-[#E85D4E] hover:text-white transition-all active:scale-95"
+                        className={`px-4 py-2 border rounded-full text-sm transition-all active:scale-95 ${
+                          isClosest(server)
+                            ? 'bg-[rgba(74,222,128,0.1)] border-[rgba(74,222,128,0.3)] text-[#4ADE80] hover:bg-[rgba(74,222,128,0.2)]'
+                            : 'bg-[#111118] border-[rgba(255,255,255,0.08)] text-[#D1D5DB] hover:border-[#E85D4E] hover:text-white'
+                        }`}
                       >
                         <span className="mr-1">{server.flag}</span>
                         {server.name}
+                        {isClosest(server) && <span className="ml-1 text-[10px]">★</span>}
                       </button>
                     ))}
                   </div>
@@ -301,27 +394,21 @@ const PingTestSection: React.FC = () => {
                   <p className="text-[#6B7280] text-sm mt-2">
                     {selectedServer?.flag} {selectedServer?.name}
                   </p>
+                  {userCity && <p className="text-xs text-[#4ADE80] mt-1">{userCity}</p>}
                 </div>
               )}
 
               {state === 'testing' && (
                 <div className="py-8">
                   <div className="font-['JetBrains_Mono'] text-[#E85D4E] text-lg mb-4">
-                    Testing...
+                    Measuring...
                   </div>
-                  {/* Progress bar */}
                   <div className="w-full h-1 bg-[#111118] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#E85D4E] rounded-full transition-all"
-                      style={{ width: `${progress * 100}%` }}
-                    />
+                    <div className="h-full bg-[#E85D4E] rounded-full transition-all" style={{ width: `${progress * 100}%` }} />
                   </div>
-                  {/* Flashing ping */}
                   {flashingPing !== null && (
                     <div className="mt-6 text-center">
-                      <span className="font-['JetBrains_Mono'] text-4xl text-[#9CA3AF]">
-                        {flashingPing}
-                      </span>
+                      <span className="font-['JetBrains_Mono'] text-4xl text-[#9CA3AF]">{flashingPing}</span>
                       <span className="font-['JetBrains_Mono'] text-sm text-[#6B7280] ml-1">ms</span>
                     </div>
                   )}
@@ -330,33 +417,22 @@ const PingTestSection: React.FC = () => {
 
               {state === 'result' && selectedServer && (
                 <div className="relative">
-                  {/* Sparkle canvas */}
-                  <canvas
-                    ref={sparkleCanvasRef}
-                    className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-none"
-                    style={{ width: 200, height: 200 }}
-                  />
-
-                  {/* Ping result */}
+                  <canvas ref={sparkleCanvasRef} className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-none" style={{ width: 200, height: 200 }} />
                   <div className="text-center">
+                    {isClosest(selectedServer) && (
+                      <div className="mb-2 inline-flex items-center gap-1 text-xs text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-3 py-1 rounded-full">
+                        <Zap size={12} /> Closest Server — {userCity}
+                      </div>
+                    )}
                     <div className="flex items-baseline justify-center">
-                      <span
-                        className="font-['JetBrains_Mono'] text-6xl md:text-7xl"
-                        style={{ color: getPingColor(pingResult) }}
-                      >
+                      <span className="font-['JetBrains_Mono'] text-6xl md:text-7xl" style={{ color: getPingColor(pingResult) }}>
                         <CountUp end={pingResult} duration={0.5} />
                       </span>
                       <span className="font-['JetBrains_Mono'] text-lg text-[#9CA3AF] ml-2">ms</span>
                     </div>
-
-                    <div
-                      className="mt-2 text-sm font-medium uppercase tracking-wider"
-                      style={{ color: getPingColor(pingResult) }}
-                    >
+                    <div className="mt-2 text-sm font-medium uppercase tracking-wider" style={{ color: getPingColor(pingResult) }}>
                       {getPingLabel(pingResult)}
                     </div>
-
-                    {/* Server details */}
                     <div className="mt-6 space-y-3 text-left bg-[#111118] rounded-xl p-5">
                       <div className="flex justify-between">
                         <span className="text-[#6B7280] text-sm">Server</span>
@@ -367,27 +443,18 @@ const PingTestSection: React.FC = () => {
                         <span className="text-[#4ADE80] text-sm font-['JetBrains_Mono']">0%</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-[#6B7280] text-sm">Jitter</span>
-                        <span
-                          className="text-sm font-['JetBrains_Mono']"
-                          style={{ color: getPingColor(pingResult) }}
-                        >
-                          ±{selectedServer.jitter}
-                        </span>
+                        <span className="text-[#6B7280] text-sm">Endpoint</span>
+                        <span className="text-[#9CA3AF] text-xs font-['JetBrains_Mono'] truncate max-w-[180px]">{selectedServer.endpoint}</span>
                       </div>
+                      {distance !== null && isClosest(selectedServer) && (
+                        <div className="flex justify-between">
+                          <span className="text-[#6B7280] text-sm">Distance</span>
+                          <span className="text-[#4ADE80] text-sm font-['JetBrains_Mono']">{distance}mi from you</span>
+                        </div>
+                      )}
                     </div>
-
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="mt-6"
-                      onClick={() => {
-                        setState('idle');
-                        setSelectedServer(null);
-                        setPingResult(0);
-                        setProgress(0);
-                      }}
-                    >
+                    <Button variant="secondary" size="sm" className="mt-6"
+                      onClick={() => { setState('idle'); setSelectedServer(null); setPingResult(0); setProgress(0); }}>
                       Test Again
                     </Button>
                   </div>
