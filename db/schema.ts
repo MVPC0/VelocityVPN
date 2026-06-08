@@ -110,4 +110,19 @@ export const pingResults = mysqlTable("ping_results", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Server Monitoring (real-time data) ─────────────────────
+
+export const serverMonitoring = mysqlTable("server_monitoring", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  serverId: int("server_id").notNull(),
+  latency: int("latency").notNull(),
+  playerCount: int("player_count").default(0).notNull(),
+  loadPercent: int("load_percent").default(0).notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export type ServerMonitoring = typeof serverMonitoring.$inferSelect;
+
+// ─── Ping results ─────────────────────────────────────────────
+
 export type PingResult = typeof pingResults.$inferSelect;

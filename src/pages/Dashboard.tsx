@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
+import { trpc } from "@/providers/trpc";
 import {
   Shield, Zap, Power, Clock, ArrowDown, ArrowUp,
   Activity, Server, RefreshCw, ChevronLeft, Download,
@@ -377,10 +378,16 @@ function getHeatLevel(load: number): {
 
 // ─── Heat Map Tab Component ───────────────────────────────────
 
+interface MonServer {
+  serverId: number; name: string; city: string; countryCode: string;
+  region: string; latency: number | null; playerCount: number;
+  loadPercent: number; isPeakHour: boolean; localHour: number;
+}
+
 function HeatMapTab({
   servers,
   heatLoads,
-  heatHistory,
+  monitoringData,
   canConnect,
   goToLogin,
   closestServer,
@@ -388,7 +395,7 @@ function HeatMapTab({
 }: {
   servers: VPNServer[];
   heatLoads: Record<number, number>;
-  heatHistory: Array<Record<number, number>>;
+  monitoringData: { servers: MonServer[]; timestamp: string } | undefined;
   canConnect: boolean;
   goToLogin: () => void;
   closestServer: ServerLocation | null;
@@ -397,10 +404,17 @@ function HeatMapTab({
   const [selectedHeatServer, setSelectedHeatServer] = useState<number | null>(null);
   const sortedByLoad = [...servers].sort((a, b) => (heatLoads[b.id] ?? 0) - (heatLoads[a.id] ?? 0));
 
+  // Player count lookup from real monitoring
+  const playerCounts: Record<number, number> = {};
+  if (monitoringData?.servers) {
+    monitoringData.servers.forEach((s) => { playerCounts[s.serverId] = s.playerCount; });
+  }
+
   // Find the closest server in our VPNServer list
   const closestVPNServer = closestServer
     ? servers.find((s) => s.id === closestServer.id) ?? null
     : null;
+  const closestPlayers = closestVPNServer ? (playerCounts[closestVPNServer.id] ?? 0) : 0;
 
   return (
     <div>
@@ -417,7 +431,7 @@ function HeatMapTab({
                   Recommended Server — Closest to You
                 </p>
                 <p className="text-xs text-[#9CA3AF]">
-                  {FLAG_MAP[closestVPNServer.countryCode] ?? "🌐"} {closestVPNServer.city} ({closestVPNServer.name}) — {distance}mi away — Load: {heatLoads[closestVPNServer.id] ?? closestVPNServer.load}%
+                  {FLAG_MAP[closestVPNServer.countryCode] ?? "🌐"} {closestVPNServer.city} — {distance}mi — <strong className="text-white">{closestPlayers.toLocaleString()}</strong> players — Load: {heatLoads[closestVPNServer.id] ?? closestVPNServer.load}%
                 </p>
               </div>
             </div>
@@ -618,8 +632,7 @@ function HeatMapTab({
           const heat = getHeatLevel(load);
           const isSelected = selectedHeatServer === server.id;
           const isClosestSrv = closestServer?.id === server.id;
-          const history = heatHistory.map((h) => h[server.id] ?? load);
-          const sparklinePoints = history.slice(-20).map((v, i) => `${(i / 19) * 100},${100 - v}`).join(" ");
+          const players = playerCounts[server.id] ?? 0;
 
           return (
             <div
@@ -637,12 +650,6 @@ function HeatMapTab({
                   </span>
                 </div>
               )}
-              {/* Sparkline background */}
-              {sparklinePoints && (
-                <svg className="absolute bottom-0 left-0 right-0 h-12 opacity-20" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <polyline points={sparklinePoints} fill="none" stroke={heat.color} strokeWidth={2} />
-                </svg>
-              )}
 
               <div className="relative z-10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -650,6 +657,9 @@ function HeatMapTab({
                   <div>
                     <div className="font-medium text-sm text-white">{server.city}</div>
                     <div className="text-xs text-[#6B7280]">{server.name}</div>
+                    <div className="text-[10px] text-[#9CA3AF] mt-0.5">
+                      {players.toLocaleString()} players
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -671,7 +681,12 @@ function HeatMapTab({
               {/* Expanded detail */}
               {isSelected && (
                 <div className="relative z-10 mt-3 pt-3 border-t border-[rgba(255,255,255,0.06)]">
-                  <p className="text-xs text-[#9CA3AF] mb-2">{heat.description}</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-[#9CA3AF]">{heat.description}</p>
+                    <span className="text-xs font-['JetBrains_Mono'] text-white font-bold">
+                      {players.toLocaleString()} players
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-2 bg-[#111118] rounded-full overflow-hidden">
                       <div
@@ -713,17 +728,11 @@ function HeatMapTab({
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, trial, canUsePremium, isGuest, logout } = useAuth();
-  const { closestServer } = useClosestServer(SERVER_LOCATIONS);
+  const { closestServer, distance } = useClosestServer(SERVER_LOCATIONS);
   const [servers, setServers] = useState<VPNServer[]>(INITIAL_SERVERS);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [selectedServerId, setSelectedServerId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"servers" | "heat" | "status" | "history">("servers");
-  const [heatLoads, setHeatLoads] = useState<Record<number, number>>(() => {
-    const map: Record<number, number> = {};
-    INITIAL_SERVERS.forEach((s) => { map[s.id] = s.load; });
-    return map;
-  });
-  const [heatHistory, setHeatHistory] = useState<Array<Record<number, number>>>([]);
   const [elapsed, setElapsed] = useState(0);
   const [history, setHistory] = useState<Array<{
     server: VPNServer; duration: number; bytesSent: number;
@@ -737,22 +746,20 @@ const Dashboard: React.FC = () => {
   const [pingingId, setPingingId] = useState<number | null>(null);
   const [isPingingAll, setIsPingingAll] = useState(false);
 
-  // Real-time heat map load fluctuation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setHeatLoads((prev) => {
-        const next: Record<number, number> = {};
-        INITIAL_SERVERS.forEach((s) => {
-          const current = prev[s.id] ?? s.load;
-          const fluctuation = (Math.random() - 0.5) * 8;
-          next[s.id] = Math.max(5, Math.min(95, Math.round(current + fluctuation)));
-        });
-        setHeatHistory((h) => [...h.slice(-29), next]);
-        return next;
-      });
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  // ─── REAL MONITORING DATA ────────────────────────────────────
+  const { data: monitoringData } = trpc.monitoring.snapshot.useQuery(undefined, {
+    refetchInterval: 10000, // Poll every 10 seconds
+    staleTime: 5000,
+  });
+
+  // Build heat loads from real monitoring data (player count based)
+  const heatLoads: Record<number, number> = {};
+  const heatHistory: Array<Record<number, number>> = [];
+  if (monitoringData?.servers) {
+    monitoringData.servers.forEach((s) => {
+      heatLoads[s.serverId] = s.loadPercent;
+    });
+  }
 
   // For guest demo: allow viewing servers but not connecting
   const canConnect = canUsePremium;
@@ -1100,7 +1107,7 @@ const Dashboard: React.FC = () => {
           <HeatMapTab
             servers={servers}
             heatLoads={heatLoads}
-            heatHistory={heatHistory}
+            monitoringData={monitoringData}
             canConnect={canConnect}
             goToLogin={goToLogin}
             closestServer={closestServer}
