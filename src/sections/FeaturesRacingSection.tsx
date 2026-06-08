@@ -18,8 +18,8 @@ interface Feature {
 const features: Feature[] = [
   {
     icon: Shield,
-    title: 'DDoS Protection',
-    description: 'Your real IP stays hidden. DDoS attacks hit our servers, not your connection. Play tournaments with confidence.',
+    title: 'Cloudflare Protected',
+    description: 'Cloudflare DDoS mitigation and bot protection. HTTPS enforced. Security headers on every request. Protected by enterprise-grade infrastructure.',
     speed: 0.5,
     column: 1,
     floatDelay: 0,

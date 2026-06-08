@@ -307,11 +307,7 @@ const GlobalMapSection: React.FC = () => {
           {stats.map((stat) => (
             <div key={stat.label} className="text-center">
               <div className={`font-['JetBrains_Mono'] text-3xl md:text-4xl ${stat.color}`}>
-                {isInView ? (
-                  <CountUp end={stat.value} duration={2} suffix={stat.suffix} />
-                ) : (
-                  `0${stat.suffix}`
-                )}
+                <CountUp end={stat.value} duration={2} suffix={stat.suffix} />
               </div>
               <div className="text-eyebrow mt-2 text-[10px] text-[#6B7280]">{stat.label}</div>
             </div>

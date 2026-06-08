@@ -1,0 +1,5 @@
+# Redirect HTTP to HTTPS
+http://* https://:splat 301!
+
+# Redirect www to non-www
+https://www.* https://:splat 301!
