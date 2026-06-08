@@ -1,10 +1,14 @@
 import { authRouter } from "./auth-router";
+import { emailAuthRouter } from "./routers/email-auth";
+import { googleAuthRouter } from "./routers/google-auth";
 import { vpnRouter } from "./routers/vpn";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
   auth: authRouter,
+  emailAuth: emailAuthRouter,
+  googleAuth: googleAuthRouter,
   vpn: vpnRouter,
 });
 
