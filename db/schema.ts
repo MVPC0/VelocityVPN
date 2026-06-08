@@ -39,6 +39,10 @@ export const emailUsers = mysqlTable("email_users", {
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   verified: boolean("verified").default(false).notNull(),
   verificationCode: varchar("verification_code", { length: 10 }),
+  // Trial fields
+  trialStartedAt: timestamp("trial_started_at"),
+  trialDays: int("trial_days").default(3).notNull(),
+  isSubscribed: boolean("is_subscribed").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
   lastSignInAt: timestamp("last_sign_in_at").defaultNow().notNull(),

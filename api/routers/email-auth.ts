@@ -44,6 +44,32 @@ export async function verifyEmailToken(token: string) {
   }
 }
 
+// Helper: get trial status for a user
+function getTrialStatus(user: typeof emailUsers.$inferSelect) {
+  const now = new Date();
+  const started = user.trialStartedAt;
+  const days = user.trialDays;
+  const isSubscribed = user.isSubscribed;
+
+  if (isSubscribed) {
+    return { status: "premium" as const, daysLeft: null, expired: false };
+  }
+
+  if (!started) {
+    return { status: "no_trial" as const, daysLeft: days, expired: false };
+  }
+
+  const elapsedMs = now.getTime() - new Date(started).getTime();
+  const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
+  const daysLeft = Math.max(0, Math.ceil(days - elapsedDays));
+
+  if (daysLeft <= 0) {
+    return { status: "expired" as const, daysLeft: 0, expired: true };
+  }
+
+  return { status: "trial" as const, daysLeft, expired: false };
+}
+
 export const emailAuthRouter = createRouter({
   signup: publicQuery
     .input(
@@ -56,7 +82,6 @@ export const emailAuthRouter = createRouter({
     .mutation(async ({ input }) => {
       const db = getDb();
 
-      // Check if email already exists
       const existing = await db
         .select()
         .from(emailUsers)
@@ -87,7 +112,6 @@ export const emailAuthRouter = createRouter({
         success: true,
         userId,
         message: "Account created. Check your email for the verification code.",
-        // In production, this would be sent via email. For now, return it for testing.
         code,
       };
     }),
@@ -120,18 +144,22 @@ export const emailAuthRouter = createRouter({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid verification code" });
       }
 
+      // Start trial on verification
       await db
         .update(emailUsers)
-        .set({ verified: true, verificationCode: null })
+        .set({
+          verified: true,
+          verificationCode: null,
+          trialStartedAt: new Date(),
+        })
         .where(eq(emailUsers.id, user[0].id));
 
-      // Create session token
       const token = await createToken(user[0].id);
 
       return {
         success: true,
         token,
-        message: "Email verified successfully",
+        message: "Email verified successfully. Your 3-day free trial has started!",
       };
     }),
 
@@ -172,17 +200,18 @@ export const emailAuthRouter = createRouter({
         });
       }
 
-      // Update last sign in
       await db
         .update(emailUsers)
         .set({ lastSignInAt: new Date() })
         .where(eq(emailUsers.id, user[0].id));
 
       const token = await createToken(user[0].id);
+      const trial = getTrialStatus(user[0]);
 
       return {
         success: true,
         token,
+        trial,
         user: {
           id: user[0].id,
           email: user[0].email,
@@ -192,7 +221,6 @@ export const emailAuthRouter = createRouter({
     }),
 
   me: publicQuery.query(async ({ ctx }) => {
-    // Check for email auth token in header
     const authHeader = ctx.req.headers.get("x-email-auth-token");
     if (!authHeader) return null;
 
@@ -208,14 +236,58 @@ export const emailAuthRouter = createRouter({
 
     if (user.length === 0 || !user[0].verified) return null;
 
+    const trial = getTrialStatus(user[0]);
+
     return {
       id: user[0].id,
       email: user[0].email,
       name: user[0].name,
       role: user[0].role,
       createdAt: user[0].createdAt,
+      trial,
     };
   }),
+
+  startTrial: publicQuery
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+
+      const user = await db
+        .select()
+        .from(emailUsers)
+        .where(eq(emailUsers.email, input.email))
+        .limit(1);
+
+      if (user.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+
+      await db
+        .update(emailUsers)
+        .set({ trialStartedAt: new Date() })
+        .where(eq(emailUsers.id, user[0].id));
+
+      return { success: true, message: "3-day free trial started!" };
+    }),
+
+  trialStatus: publicQuery
+    .input(z.object({ email: z.string().email() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+
+      const user = await db
+        .select()
+        .from(emailUsers)
+        .where(eq(emailUsers.email, input.email))
+        .limit(1);
+
+      if (user.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+
+      return getTrialStatus(user[0]);
+    }),
 
   resendCode: publicQuery
     .input(z.object({ email: z.string().email() }))

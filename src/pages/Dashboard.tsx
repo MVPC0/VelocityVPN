@@ -3,8 +3,9 @@ import { useNavigate } from "react-router";
 import {
   Shield, Zap, Power, Clock, ArrowDown, ArrowUp,
   Activity, Server, RefreshCw, ChevronLeft, Download,
-  Navigation
+  Navigation, Lock, Sparkles, Crown, LogIn
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { useClosestServer } from "@/hooks/useGeoLocation";
 import type { ServerLocation } from "@/hooks/useGeoLocation";
 
@@ -43,10 +44,12 @@ const SERVER_LOCATIONS: ServerLocation[] = [
 ];
 
 const FLAG_MAP: Record<string, string> = {
-  US: "🇺🇸", GB: "🇬🇧", DE: "🇩🇪", JP: "🇯🇵",
-  SG: "🇸🇬", AU: "🇦🇺", BR: "🇧🇷", AE: "🇦🇪", SE: "🇸🇪",
-  CA: "🇨🇦", NL: "🇳🇱", FR: "🇫🇷", PL: "🇵🇱",
-  IN: "🇮🇳", HK: "🇭🇰", KR: "🇰🇷", ES: "🇪🇸",
+  US: "\uD83C\uDDFA\uD83C\uDDF8", GB: "\uD83C\uDDEC\uD83C\uDDE7", DE: "\uD83C\uDDE9\uD83C\uDDEA",
+  JP: "\uD83C\uDDEF\uD83C\uDDF5", SG: "\uD83C\uDDF8\uD83C\uDDEC", AU: "\uD83C\uDDE6\uD83C\uDDFA",
+  BR: "\uD83C\uDDE7\uD83C\uDDF7", AE: "\uD83C\uDDE6\uD83C\uDDEA", SE: "\uD83C\uDDF8\uD83C\uDDEA",
+  CA: "\uD83C\uDDE8\uD83C\uDDE6", NL: "\uD83C\uDDF3\uD83C\uDDF1", FR: "\uD83C\uDDEB\uD83C\uDDF7",
+  PL: "\uD83C\uDDF5\uD83C\uDDF1", IN: "\uD83C\uDDEE\uD83C\uDDF3", HK: "\uD83C\uDDED\uD83C\uDDF0",
+  KR: "\uD83C\uDDF0\uD83C\uDDF7", ES: "\uD83C\uDDEA\uD83C\uDDF8",
 };
 
 const INITIAL_SERVERS: VPNServer[] = [
@@ -60,18 +63,8 @@ const INITIAL_SERVERS: VPNServer[] = [
   { id: 8, name: "SA-East-1", city: "Sao Paulo", country: "Brazil", countryCode: "BR", region: "south_america", hostname: "sao-br.velocityvpn.com", load: 28, ping: 68, jitter: 7, protocol: "wireguard" },
   { id: 9, name: "ME-South-1", city: "Dubai", country: "UAE", countryCode: "AE", region: "middle_east", hostname: "dxb-ae.velocityvpn.com", load: 41, ping: 52, jitter: 5, protocol: "wireguard" },
   { id: 10, name: "EU-North-1", city: "Stockholm", country: "Sweden", countryCode: "SE", region: "europe", hostname: "sto-se.velocityvpn.com", load: 12, ping: 25, jitter: 2, protocol: "wireguard" },
-  { id: 11, name: "US-Central-1", city: "Chicago", country: "United States", countryCode: "US", region: "north_america", hostname: "chi-us.velocityvpn.com", load: 33, ping: 28, jitter: 3, protocol: "wireguard" },
-  { id: 12, name: "NA-North-1", city: "Toronto", country: "Canada", countryCode: "CA", region: "north_america", hostname: "tor-ca.velocityvpn.com", load: 20, ping: 24, jitter: 2, protocol: "wireguard" },
-  { id: 13, name: "EU-West-2", city: "Amsterdam", country: "Netherlands", countryCode: "NL", region: "europe", hostname: "ams-nl.velocityvpn.com", load: 27, ping: 21, jitter: 2, protocol: "wireguard" },
-  { id: 14, name: "EU-South-1", city: "Paris", country: "France", countryCode: "FR", region: "europe", hostname: "par-fr.velocityvpn.com", load: 35, ping: 23, jitter: 3, protocol: "wireguard" },
-  { id: 15, name: "EU-East-1", city: "Warsaw", country: "Poland", countryCode: "PL", region: "europe", hostname: "waw-pl.velocityvpn.com", load: 18, ping: 26, jitter: 2, protocol: "wireguard" },
-  { id: 16, name: "AS-South-1", city: "Mumbai", country: "India", countryCode: "IN", region: "asia_pacific", hostname: "bom-in.velocityvpn.com", load: 44, ping: 55, jitter: 6, protocol: "wireguard" },
-  { id: 17, name: "AS-East-1", city: "Hong Kong", country: "Hong Kong", countryCode: "HK", region: "asia_pacific", hostname: "hkg-hk.velocityvpn.com", load: 37, ping: 45, jitter: 4, protocol: "wireguard" },
-  { id: 18, name: "AS-Northeast-2", city: "Seoul", country: "South Korea", countryCode: "KR", region: "asia_pacific", hostname: "sel-kr.velocityvpn.com", load: 48, ping: 40, jitter: 5, protocol: "wireguard" },
-  { id: 19, name: "EU-Southwest-1", city: "Madrid", country: "Spain", countryCode: "ES", region: "europe", hostname: "mad-es.velocityvpn.com", load: 22, ping: 30, jitter: 3, protocol: "wireguard" },
 ];
 
-// Real ping targets — well-known regional endpoints
 const PING_TARGETS: Record<number, string> = {
   1: "https://www.google.com",
   2: "https://www.cloudflare.com",
@@ -83,18 +76,8 @@ const PING_TARGETS: Record<number, string> = {
   8: "https://www.gov.br",
   9: "https://www.google.ae",
   10: "https://www.regeringen.se",
-  11: "https://www.chicago.gov",
-  12: "https://www.canada.ca",
-  13: "https://www.rijksoverheid.nl",
-  14: "https://www.gouvernement.fr",
-  15: "https://www.gov.pl",
-  16: "https://www.india.gov.in",
-  17: "https://www.gov.hk",
-  18: "https://www.go.kr",
-  19: "https://www.lamoncloa.gob.es",
 };
 
-// Real ping using image load timing — works cross-origin without CORS
 function measurePingImage(endpoint: string): Promise<number> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -103,13 +86,132 @@ function measurePingImage(endpoint: string): Promise<number> {
     const cleanup = () => resolve(Math.max(1, Math.round(performance.now() - start)));
     img.onload = cleanup;
     img.onerror = cleanup;
-    setTimeout(() => { img.src = ''; cleanup(); }, 8000);
-    img.src = endpoint + '/favicon.ico' + cacheBuster;
+    setTimeout(() => { img.src = ""; cleanup(); }, 8000);
+    img.src = endpoint + "/favicon.ico" + cacheBuster;
   });
 }
 
+// ─── Trial Banner Component ───────────────────────────────────
+
+function TrialBanner({
+  trial,
+  onUpgrade,
+}: {
+  trial: { status: string; daysLeft: number | null; expired: boolean };
+  onUpgrade: () => void;
+}) {
+  if (trial.status === "premium") return null;
+
+  if (trial.status === "trial" && trial.daysLeft !== null) {
+    return (
+      <div className="bg-[rgba(232,93,78,0.1)] border border-[rgba(232,93,78,0.2)] rounded-xl p-3 mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-[rgba(232,93,78,0.15)] flex items-center justify-center">
+            <Sparkles size={16} className="text-[#E85D4E]" />
+          </div>
+          <div>
+            <p className="text-sm text-white font-medium">
+              Free Trial Active — {trial.daysLeft} {trial.daysLeft === 1 ? "day" : "days"} left
+            </p>
+            <p className="text-xs text-[#9CA3AF]">
+              All premium features unlocked. Upgrade to keep access after trial.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onUpgrade}
+          className="px-4 py-2 bg-[#E85D4E] text-white rounded-lg text-xs font-medium hover:bg-[#D44A3C] transition-all cursor-pointer border-0 shrink-0"
+        >
+          Upgrade
+        </button>
+      </div>
+    );
+  }
+
+  if (trial.status === "expired") {
+    return (
+      <div className="bg-[rgba(232,93,78,0.08)] border border-[rgba(232,93,78,0.2)] rounded-xl p-3 mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-[rgba(232,93,78,0.1)] flex items-center justify-center">
+            <Clock size={16} className="text-[#E85D4E]" />
+          </div>
+          <div>
+            <p className="text-sm text-white font-medium">Trial Expired</p>
+            <p className="text-xs text-[#9CA3AF]">
+              Your 3-day free trial has ended. Upgrade to continue using premium features.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onUpgrade}
+          className="px-4 py-2 bg-[#E85D4E] text-white rounded-lg text-xs font-medium hover:bg-[#D44A3C] transition-all cursor-pointer border-0 shrink-0"
+        >
+          Upgrade
+        </button>
+      </div>
+    );
+  }
+
+  // Guest mode banner
+  return (
+    <div className="bg-[rgba(155,109,255,0.08)] border border-[rgba(155,109,255,0.2)] rounded-xl p-3 mb-4 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-[rgba(155,109,255,0.12)] flex items-center justify-center">
+          <Crown size={16} className="text-[#9B6DFF]" />
+        </div>
+        <div>
+          <p className="text-sm text-white font-medium">Browsing as Guest</p>
+          <p className="text-xs text-[#9CA3AF]">
+            Sign up for a free 3-day trial to unlock VPN connections and all premium features.
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={onUpgrade}
+        className="px-4 py-2 bg-[#9B6DFF] text-white rounded-lg text-xs font-medium hover:bg-[#8B5DF5] transition-all cursor-pointer border-0 shrink-0 flex items-center gap-1.5"
+      >
+        <Sparkles size={12} /> Start Free Trial
+      </button>
+    </div>
+  );
+}
+
+// ─── Locked Feature Overlay ───────────────────────────────────
+
+function LockedOverlay({
+  title,
+  description,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="relative min-h-[200px] flex items-center justify-center">
+      <div className="absolute inset-0 bg-[#0A0A0F] rounded-xl" />
+      <div className="relative z-10 text-center px-6 py-8">
+        <div className="w-12 h-12 rounded-full bg-[rgba(155,109,255,0.1)] flex items-center justify-center mx-auto mb-3">
+          <Lock size={20} className="text-[#9B6DFF]" />
+        </div>
+        <h4 className="text-white font-medium mb-1">{title}</h4>
+        <p className="text-xs text-[#6B7280] mb-4 max-w-[260px] mx-auto">{description}</p>
+        <button
+          onClick={onAction}
+          className="px-4 py-2 bg-[#9B6DFF] text-white rounded-lg text-xs font-medium hover:bg-[#8B5DF5] transition-all cursor-pointer border-0 inline-flex items-center gap-1.5"
+        >
+          <Sparkles size={12} /> Start Free Trial
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated, trial, canUsePremium, isGuest, logout } = useAuth();
   const { closestServer } = useClosestServer(SERVER_LOCATIONS);
   const [servers, setServers] = useState<VPNServer[]>(INITIAL_SERVERS);
   const [connection, setConnection] = useState<Connection | null>(null);
@@ -128,7 +230,10 @@ const Dashboard: React.FC = () => {
   const [pingingId, setPingingId] = useState<number | null>(null);
   const [isPingingAll, setIsPingingAll] = useState(false);
 
-  // Auto-select closest server on geolocation detection
+  // For guest demo: allow viewing servers but not connecting
+  const canConnect = canUsePremium;
+
+  // Auto-select closest server
   useEffect(() => {
     if (closestServer && !selectedServerId && !connection) {
       setSelectedServerId(closestServer.id);
@@ -145,7 +250,7 @@ const Dashboard: React.FC = () => {
   }, [connection]);
 
   const handleConnect = useCallback(() => {
-    if (!selectedServerId) return;
+    if (!canConnect || !selectedServerId) return;
     const server = servers.find((s) => s.id === selectedServerId);
     if (!server) return;
     setIsConnecting(true);
@@ -155,7 +260,7 @@ const Dashboard: React.FC = () => {
       setServers((prev) => prev.map((s) => s.id === server.id ? { ...s, load: Math.min(100, s.load + 4) } : s));
       setIsConnecting(false);
     }, 1200);
-  }, [selectedServerId, servers]);
+  }, [canConnect, selectedServerId, servers]);
 
   const handleDisconnect = useCallback(() => {
     if (!connection) return;
@@ -172,20 +277,16 @@ const Dashboard: React.FC = () => {
     }, 600);
   }, [connection, elapsed]);
 
-  // Ping measurement — uses real image load timing
   const handlePingTest = useCallback(async (serverId: number) => {
     const target = PING_TARGETS[serverId];
     if (!target) return;
     setPingingId(serverId);
-
-    // Take 3 real samples using image load timing
     const samples: number[] = [];
     for (let i = 0; i < 3; i++) {
       const latency = await measurePingImage(target);
       samples.push(latency);
       if (i < 2) await new Promise((r) => setTimeout(r, 80));
     }
-
     const latency = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
     const jitter = Math.max(1, Math.max(...samples) - Math.min(...samples));
     setServers((prev) => prev.map((s) => s.id === serverId ? { ...s, ping: latency, jitter } : s));
@@ -215,32 +316,26 @@ const Dashboard: React.FC = () => {
   const pingColor = (p: number | null) => p === null ? "text-[#6B7280]" : p < 50 ? "text-[#4ADE80]" : p < 100 ? "text-[#FBBF24]" : "text-[#EF4444]";
   const loadColor = (l: number) => l < 30 ? "bg-[#4ADE80]" : l < 70 ? "bg-[#FBBF24]" : "bg-[#EF4444]";
 
-  // Generate and download WireGuard config
   const downloadWireGuardConfig = useCallback(() => {
     if (!connection) return;
-    const privateKey = Array.from({ length: 44 }, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'[Math.floor(Math.random() * 64)]).join('');
-    const config = `[Interface]
-PrivateKey = ${privateKey}
-Address = ${connection.assignedIp}/32
-DNS = 1.1.1.1, 8.8.8.8
-MTU = 1420
-
-[Peer]
-PublicKey = ${connection.server.hostname.replace(/\./g, '_').toUpperCase()}_KEY_001
-AllowedIPs = 0.0.0.0/0, ::/0
-Endpoint = ${connection.server.hostname}:51820
-PersistentKeepalive = 25`;
-
-    const blob = new Blob([config], { type: 'text/plain' });
+    const privateKey = Array.from({ length: 44 }, () => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[Math.floor(Math.random() * 64)]).join("");
+    const config = `[Interface]\nPrivateKey = ${privateKey}\nAddress = ${connection.assignedIp}/32\nDNS = 1.1.1.1, 8.8.8.8\nMTU = 1420\n\n[Peer]\nPublicKey = ${connection.server.hostname.replace(/\./g, "_").toUpperCase()}_KEY_001\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = ${connection.server.hostname}:51820\nPersistentKeepalive = 25`;
+    const blob = new Blob([config], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `velocityvpn-${connection.server.city.toLowerCase().replace(/\s/g, '-')}.conf`;
+    a.download = `velocityvpn-${connection.server.city.toLowerCase().replace(/\s/g, "-")}.conf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }, [connection]);
+
+  const goToLogin = () => navigate("/login");
+  const goToPricing = () => navigate("/pricing");
+
+  // Guest mode: allow server browsing + ping but lock everything else
+  const activeTrial = trial ?? { status: "guest", daysLeft: null, expired: false };
 
   return (
     <div className="min-h-screen bg-[#050507] text-white">
@@ -271,12 +366,26 @@ PersistentKeepalive = 25`;
                 <span className="text-[#4ADE80] text-xs font-medium">Connected</span>
               </div>
             )}
-            <span className="text-xs text-[#6B7280] bg-[#111118] px-3 py-1.5 rounded-lg">Guest</span>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#6B7280] hidden sm:block">{user?.name ?? user?.email ?? "User"}</span>
+                <button onClick={logout} className="text-xs text-[#E85D4E] hover:text-white transition-colors bg-transparent border-0 cursor-pointer">
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button onClick={goToLogin} className="text-xs text-[#E85D4E] hover:text-white transition-colors flex items-center gap-1 bg-transparent border-0 cursor-pointer">
+                <LogIn size={12} /> Sign In
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       <div className="max-w-[1400px] mx-auto px-4 py-6">
+        {/* Trial / Guest Banner */}
+        <TrialBanner trial={activeTrial} onUpgrade={goToLogin} />
+
         {/* Status Card */}
         <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -291,9 +400,11 @@ PersistentKeepalive = 25`;
                 <p className="text-[#9CA3AF] text-sm mt-0.5">
                   {connection
                     ? `${connection.server.city} — ${formatDuration(elapsed)}`
-                    : selectedServerId
-                    ? `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected — Click Connect`
-                    : "Select a server below to connect"}
+                    : canConnect
+                    ? selectedServerId
+                      ? `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected — Click Connect`
+                      : "Select a server below to connect"
+                    : "Sign up for a free 3-day trial to connect"}
                 </p>
               </div>
             </div>
@@ -309,19 +420,27 @@ PersistentKeepalive = 25`;
                     <Download size={14} /> Config
                   </button>
                   <button onClick={handleDisconnect} disabled={isDisconnecting}
-                    className="px-5 py-2.5 bg-[#EF4444] text-white rounded-lg font-medium hover:bg-[#DC2626] transition-all disabled:opacity-50 flex items-center gap-2 text-sm">
+                    className="px-5 py-2.5 bg-[#EF4444] text-white rounded-lg font-medium hover:bg-[#DC2626] transition-all disabled:opacity-50 flex items-center gap-2 text-sm cursor-pointer border-0">
                     <Power size={14} /> {isDisconnecting ? "..." : "Disconnect"}
                   </button>
                 </>
               ) : (
-                <button onClick={handleConnect} disabled={!selectedServerId || isConnecting}
-                  className="px-5 py-2.5 bg-[#E85D4E] text-white rounded-lg font-medium hover:bg-[#D44A3C] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm glow-coral-pulse">
-                  <Zap size={14} /> {isConnecting ? "Connecting..." : "Connect"}
-                </button>
+                canConnect ? (
+                  <button onClick={handleConnect} disabled={!selectedServerId || isConnecting}
+                    className="px-5 py-2.5 bg-[#E85D4E] text-white rounded-lg font-medium hover:bg-[#D44A3C] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm glow-coral-pulse cursor-pointer border-0">
+                    <Zap size={14} /> {isConnecting ? "Connecting..." : "Connect"}
+                  </button>
+                ) : (
+                  <button onClick={goToLogin}
+                    className="px-5 py-2.5 bg-[#9B6DFF] text-white rounded-lg font-medium hover:bg-[#8B5DF5] transition-all flex items-center gap-2 text-sm cursor-pointer border-0">
+                    <Sparkles size={14} /> Start Free Trial
+                  </button>
+                )
               )}
             </div>
           </div>
 
+          {/* Connection stats — only show if connected */}
           {connection && (
             <>
               <div className="mt-5 pt-5 border-t border-[rgba(255,255,255,0.08)] grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -342,13 +461,12 @@ PersistentKeepalive = 25`;
                   <div className="font-['JetBrains_Mono'] text-base text-white uppercase">{connection.protocol}</div>
                 </div>
               </div>
-              {/* WireGuard hint + mobile download */}
               <div className="mt-3 flex items-center justify-between">
                 <p className="text-xs text-[#6B7280]">
                   Download the WireGuard config and import it into the <a href="https://www.wireguard.com/install/" target="_blank" rel="noopener noreferrer" className="text-[#E85D4E] hover:underline">WireGuard app</a> to activate your VPN tunnel.
                 </p>
                 <button onClick={downloadWireGuardConfig}
-                  className="sm:hidden flex-shrink-0 ml-3 px-3 py-1.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#4ADE80] rounded-lg text-xs font-medium items-center gap-1">
+                  className="sm:hidden flex-shrink-0 ml-3 px-3 py-1.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#4ADE80] rounded-lg text-xs font-medium items-center gap-1 cursor-pointer">
                   <Download size={12} /> Config
                 </button>
               </div>
@@ -360,19 +478,19 @@ PersistentKeepalive = 25`;
         <div className="flex gap-1 mb-5 bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl p-1 w-fit">
           {(["servers", "status", "history"] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-[#E85D4E] text-white" : "text-[#9CA3AF] hover:text-white"}`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-[#E85D4E] text-white" : "text-[#9CA3AF] hover:text-white"} ${tab !== "servers" && !canConnect ? "opacity-50" : ""}`}>
               {tab === "servers" ? "Servers" : tab === "status" ? "Stats" : "History"}
             </button>
           ))}
         </div>
 
-        {/* Servers */}
+        {/* Servers Tab — always available */}
         {activeTab === "servers" && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-['Archivo'] text-lg tracking-tight">Server Locations</h3>
               <button onClick={testAll} disabled={isPingingAll}
-                className="flex items-center gap-1.5 text-sm text-[#E85D4E] hover:text-white transition-colors disabled:opacity-50">
+                className="flex items-center gap-1.5 text-sm text-[#E85D4E] hover:text-white transition-colors disabled:opacity-50 cursor-pointer bg-transparent border-0">
                 <RefreshCw size={13} className={isPingingAll ? "animate-spin" : ""} />
                 {isPingingAll ? "Testing..." : "Test All"}
               </button>
@@ -383,10 +501,11 @@ PersistentKeepalive = 25`;
                 const isConn = connection?.server.id === server.id;
                 const isClosestSrv = closestServer?.id === server.id;
                 return (
-                  <div key={server.id} onClick={() => !connection && setSelectedServerId(server.id)}
+                  <div key={server.id}
+                    onClick={() => { if (!connection) setSelectedServerId(server.id); }}
                     className={`relative bg-[#0A0A0F] border rounded-xl p-4 transition-all ${
                       isConn ? "border-[#4ADE80] bg-[rgba(74,222,128,0.05)]" : isSel ? "border-[#E85D4E]" : isClosestSrv ? "border-[rgba(74,222,128,0.3)]" : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]"
-                    } ${connection && !isConn ? "opacity-50" : "cursor-pointer"}`}>
+                    } ${connection && !isConn ? "opacity-50" : canConnect ? "cursor-pointer" : "cursor-pointer"}`}>
                     {isClosestSrv && (
                       <div className="absolute -top-2.5 left-4">
                         <span className="flex items-center gap-1 text-[10px] font-bold text-[#050507] bg-[#4ADE80] px-2 py-0.5 rounded-full">
@@ -394,19 +513,24 @@ PersistentKeepalive = 25`;
                         </span>
                       </div>
                     )}
+                    {!canConnect && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <Lock size={12} className="text-[#9B6DFF]" />
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-xl">{FLAG_MAP[server.countryCode] ?? "🌐"}</span>
+                        <span className="text-xl">{FLAG_MAP[server.countryCode] ?? "\uD83C\uDF10"}</span>
                         <div>
                           <div className="font-medium text-sm text-white">{server.city}</div>
-                          <div className="text-xs text-[#6B7280]">{server.country} · {server.name}</div>
+                          <div className="text-xs text-[#6B7280]">{server.country} &middot; {server.name}</div>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className={`font-['JetBrains_Mono'] text-lg ${pingColor(server.ping)}`}>
                           {server.ping !== null ? `${server.ping}ms` : "--"}
                         </div>
-                        <div className="text-[10px] text-[#6B7280]">±{server.jitter ?? "--"}ms jitter</div>
+                        <div className="text-[10px] text-[#6B7280]">&plusmn;{server.jitter ?? "--"}ms jitter</div>
                       </div>
                     </div>
                     <div className="mt-2.5 flex items-center gap-2">
@@ -416,7 +540,7 @@ PersistentKeepalive = 25`;
                       <span className="text-[10px] text-[#6B7280] w-8 text-right">{server.load}%</span>
                       <button onClick={(e) => { e.stopPropagation(); handlePingTest(server.id); }}
                         disabled={pingingId === server.id}
-                        className="text-[#6B7280] hover:text-[#E85D4E] transition-colors disabled:opacity-30 p-1">
+                        className="text-[#6B7280] hover:text-[#E85D4E] transition-colors disabled:opacity-30 p-1 cursor-pointer bg-transparent border-0">
                         <RefreshCw size={11} className={pingingId === server.id ? "animate-spin" : ""} />
                       </button>
                     </div>
@@ -428,82 +552,107 @@ PersistentKeepalive = 25`;
                         </span>
                       </div>
                     )}
-                    {isSel && !connection && (
+                    {isSel && !connection && canConnect && (
                       <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[#E85D4E]" />
                     )}
                   </div>
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* Stats */}
-        {activeTab === "status" && (
-          <div>
-            <h3 className="font-['Archivo'] text-lg tracking-tight mb-3">Connection Statistics</h3>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { icon: Server, label: "Sessions", value: String(stats.totalSessions), color: "text-[#E85D4E]" },
-                { icon: Clock, label: "Total Time", value: formatDuration(stats.totalDuration), color: "text-[#9B6DFF]" },
-                { icon: ArrowDown, label: "Downloaded", value: formatBytes(stats.totalDataReceived), color: "text-[#4ADE80]" },
-                { icon: ArrowUp, label: "Uploaded", value: formatBytes(stats.totalDataSent), color: "text-[#A3B8D4]" },
-              ].map((item) => (
-                <div key={item.label} className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl p-5">
-                  <item.icon size={22} className={`${item.color} mb-2`} />
-                  <div className={`font-['JetBrains_Mono'] text-2xl ${item.color}`}>{item.value}</div>
-                  <div className="text-xs text-[#6B7280] mt-1">{item.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* History */}
-        {activeTab === "history" && (
-          <div>
-            <h3 className="font-['Archivo'] text-lg tracking-tight mb-3">Connection History</h3>
-            {!history.length ? (
-              <div className="text-center py-12 text-[#6B7280]">No sessions yet. Connect to a server to see history.</div>
-            ) : (
-              <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-[rgba(255,255,255,0.08)]">
-                        {["Server", "Status", "Duration", "Data", "Date"].map((h) => (
-                          <th key={h} className="text-left text-xs text-[#6B7280] font-medium uppercase tracking-wider px-4 py-3">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((conn, i) => (
-                        <tr key={i} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)]">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <span>{FLAG_MAP[conn.server.countryCode] ?? "🌐"}</span>
-                              <div>
-                                <div className="text-white">{conn.server.city}</div>
-                                <div className="text-xs text-[#6B7280]">{conn.server.name}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-[rgba(255,255,255,0.05)] text-[#9CA3AF]">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#6B7280]" /> {conn.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-['JetBrains_Mono'] text-white">{formatDuration(conn.duration)}</td>
-                          <td className="px-4 py-3 font-['JetBrains_Mono'] text-[#9CA3AF]">{formatBytes(conn.bytesReceived + conn.bytesSent)}</td>
-                          <td className="px-4 py-3 text-[#6B7280]">{conn.date.toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {!canConnect && (
+              <div className="mt-4 bg-[rgba(155,109,255,0.05)] border border-[rgba(155,109,255,0.15)] rounded-xl p-4 text-center">
+                <p className="text-sm text-[#9CA3AF]">
+                  <Lock size={14} className="inline mr-1 text-[#9B6DFF]" />
+                  VPN connection is available during your free trial.
+                  <button onClick={goToLogin} className="ml-2 text-[#9B6DFF] hover:underline bg-transparent border-0 cursor-pointer">Start free trial</button>
+                </p>
               </div>
             )}
           </div>
+        )}
+
+        {/* Stats Tab — locked for guests */}
+        {activeTab === "status" && (
+          canConnect ? (
+            <div>
+              <h3 className="font-['Archivo'] text-lg tracking-tight mb-3">Connection Statistics</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { icon: Server, label: "Sessions", value: String(stats.totalSessions), color: "text-[#E85D4E]" },
+                  { icon: Clock, label: "Total Time", value: formatDuration(stats.totalDuration), color: "text-[#9B6DFF]" },
+                  { icon: ArrowDown, label: "Downloaded", value: formatBytes(stats.totalDataReceived), color: "text-[#4ADE80]" },
+                  { icon: ArrowUp, label: "Uploaded", value: formatBytes(stats.totalDataSent), color: "text-[#A3B8D4]" },
+                ].map((item) => (
+                  <div key={item.label} className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl p-5">
+                    <item.icon size={22} className={`${item.color} mb-2`} />
+                    <div className={`font-['JetBrains_Mono'] text-2xl ${item.color}`}>{item.value}</div>
+                    <div className="text-xs text-[#6B7280] mt-1">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <LockedOverlay
+              title="Statistics Locked"
+              description="Connection statistics are available during your free trial. Sign up to unlock all premium features."
+              onAction={goToLogin}
+            />
+          )
+        )}
+
+        {/* History Tab — locked for guests */}
+        {activeTab === "history" && (
+          canConnect ? (
+            <div>
+              <h3 className="font-['Archivo'] text-lg tracking-tight mb-3">Connection History</h3>
+              {!history.length ? (
+                <div className="text-center py-12 text-[#6B7280]">No sessions yet. Connect to a server to see history.</div>
+              ) : (
+                <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[rgba(255,255,255,0.08)]">
+                          {["Server", "Status", "Duration", "Data", "Date"].map((h) => (
+                            <th key={h} className="text-left text-xs text-[#6B7280] font-medium uppercase tracking-wider px-4 py-3">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((conn, i) => (
+                          <tr key={i} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)]">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span>{FLAG_MAP[conn.server.countryCode] ?? "\uD83C\uDF10"}</span>
+                                <div>
+                                  <div className="text-white">{conn.server.city}</div>
+                                  <div className="text-xs text-[#6B7280]">{conn.server.name}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-[rgba(255,255,255,0.05)] text-[#9CA3AF]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#6B7280]" /> {conn.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-['JetBrains_Mono'] text-white">{formatDuration(conn.duration)}</td>
+                            <td className="px-4 py-3 font-['JetBrains_Mono'] text-[#9CA3AF]">{formatBytes(conn.bytesReceived + conn.bytesSent)}</td>
+                            <td className="px-4 py-3 text-[#6B7280]">{conn.date.toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <LockedOverlay
+              title="History Locked"
+              description="Connection history is available during your free trial. Sign up to unlock all premium features."
+              onAction={goToLogin}
+            />
+          )
         )}
       </div>
     </div>
