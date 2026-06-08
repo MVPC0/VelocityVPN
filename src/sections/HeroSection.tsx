@@ -448,15 +448,10 @@ const HeroSection: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-4 mt-10">
           <a
             href="#/login"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.hash = '/login';
-            }}
             className="inline-flex items-center justify-center font-medium transition-all duration-300
               px-12 py-5 text-sm uppercase tracking-[0.04em]
               bg-[#E85D4E] text-white rounded-lg hover:bg-[#D44A3C] hover:scale-[1.02] active:scale-[0.98]
               no-underline cursor-pointer"
-            role="button"
           >
             Start Gaming Faster
           </a>

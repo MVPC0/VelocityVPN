@@ -1,6 +1,9 @@
 import { Shield, Clock, Users } from 'lucide-react';
+import { useNavigate } from 'react-router';
 
 export default function CTASection() {
+  const navigate = useNavigate();
+
   return (
     <section
       id="cta"
@@ -26,17 +29,12 @@ export default function CTASection() {
         </p>
 
         <div className="mt-10">
-          <a
-            href="#/pricing"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.hash = '/pricing';
-            }}
-            className="inline-block px-12 py-5 bg-[#E85D4E] text-white rounded-lg text-sm font-medium uppercase tracking-[0.04em] hover:bg-[#D44A3C] transition-all glow-coral-pulse no-underline cursor-pointer"
-            role="button"
+          <button
+            onClick={() => navigate('/pricing')}
+            className="px-12 py-5 bg-[#E85D4E] text-white rounded-lg text-sm font-medium uppercase tracking-[0.04em] hover:bg-[#D44A3C] transition-all glow-coral-pulse cursor-pointer border-0"
           >
             Get VelocityVPN Now
-          </a>
+          </button>
         </div>
 
         <div className="mt-12 flex flex-wrap justify-center gap-6 md:gap-12">

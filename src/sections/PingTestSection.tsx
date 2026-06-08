@@ -93,7 +93,6 @@ const PingTestSection: React.FC = () => {
       const server = servers.find(s => s.id === closestServer.id);
       if (server) {
         setUserCity(`Detected near ${closestServer.city}`);
-        // Auto-run the ping test for closest server
         runPingTest(server);
       }
     }
