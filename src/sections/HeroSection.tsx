@@ -470,24 +470,26 @@ const HeroSection: React.FC = () => {
         </div>
 
         {/* Stats Row */}
-        <div className="absolute bottom-16 left-0 right-0 flex justify-around items-center px-6 max-w-[900px] mx-auto">
-          {stats.map((stat, i) => (
-            <React.Fragment key={stat.label}>
-              {i > 0 && (
-                <div className="hidden sm:block w-px h-10 bg-[rgba(255,255,255,0.08)]" />
-              )}
-              <div className="text-center">
-                <div className={`font-['JetBrains_Mono'] text-2xl md:text-3xl ${stat.color}`}>
-                  {(stat as any).isText
-                    ? (stat as any).textValue
-                    : <CountUp end={stat.value} duration={2} decimals={(stat as any).decimals || 0} suffix={stat.suffix} />}
+        <div className="absolute bottom-8 sm:bottom-16 left-0 right-0 px-4 sm:px-6 max-w-[900px] mx-auto">
+          <div className="grid grid-cols-4 gap-2 sm:flex sm:justify-around sm:items-center">
+            {stats.map((stat, i) => (
+              <React.Fragment key={stat.label}>
+                {i > 0 && (
+                  <div className="hidden sm:block w-px h-8 bg-[rgba(255,255,255,0.08)]" />
+                )}
+                <div className="text-center">
+                  <div className={`font-['JetBrains_Mono'] text-sm sm:text-lg md:text-xl lg:text-2xl ${stat.color} leading-tight`}>
+                    {(stat as any).isText
+                      ? (stat as any).textValue
+                      : <CountUp end={stat.value} duration={2} decimals={(stat as any).decimals || 0} suffix={stat.suffix} />}
+                  </div>
+                  <div className="text-[9px] sm:text-[10px] md:text-xs text-[#6B7280] mt-0.5 leading-tight uppercase tracking-wider">
+                    {stat.label}
+                  </div>
                 </div>
-                <div className="text-eyebrow mt-1 text-[10px] md:text-xs text-[#6B7280]">
-                  {stat.label}
-                </div>
-              </div>
-            </React.Fragment>
-          ))}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       </div>
     </section>

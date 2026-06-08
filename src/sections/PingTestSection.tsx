@@ -4,7 +4,7 @@ import Button from '@/components/Button';
 import CountUp from 'react-countup';
 import { useClosestServer } from '@/hooks/useGeoLocation';
 import type { ServerLocation } from '@/hooks/useGeoLocation';
-import { MapPin, Zap } from 'lucide-react';
+import { MapPin, Zap, RefreshCw } from 'lucide-react';
 
 type PingState = 'idle' | 'connecting' | 'testing' | 'result';
 
@@ -79,8 +79,11 @@ function measurePing(endpoint: string): Promise<number> {
     const img = new Image();
     const start = performance.now();
     const cacheBuster = `?t=${Date.now()}_${Math.random()}`;
+    let done = false;
 
     const cleanup = () => {
+      if (done) return;
+      done = true;
       const elapsed = Math.round(performance.now() - start);
       resolve(Math.max(1, elapsed));
     };
@@ -98,7 +101,7 @@ function measurePing(endpoint: string): Promise<number> {
 }
 
 const PingTestSection: React.FC = () => {
-  const { closestServer, distance, loading: geoLoading } = useClosestServer(SERVER_LOCATIONS);
+  const { closestServer, distance, loading: geoLoading, detect } = useClosestServer(SERVER_LOCATIONS);
   const [state, setState] = useState<PingState>('idle');
   const [selectedServer, setSelectedServer] = useState<Server | null>(null);
   const [pingResult, setPingResult] = useState<number>(0);
@@ -108,17 +111,26 @@ const PingTestSection: React.FC = () => {
   const [userCity, setUserCity] = useState<string>('');
   const sparkleCanvasRef = useRef<HTMLCanvasElement>(null);
   const timeoutsRef = useRef<number[]>([]);
+  const hasAutoRun = useRef(false);
 
-  // Auto-run ping for closest server on load
+  // Auto-run ping for closest server — robust with ref guard
   useEffect(() => {
-    if (closestServer && !selectedServer && state === 'idle') {
-      const server = servers.find(s => s.id === closestServer.id);
-      if (server) {
-        setUserCity(`Detected near ${closestServer.city}`);
-        runPingTest(server);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!closestServer || hasAutoRun.current) return;
+    if (state !== 'idle' || selectedServer !== null) return;
+
+    const server = servers.find(s => s.id === closestServer.id);
+    if (!server) return;
+
+    hasAutoRun.current = true;
+    setUserCity(`Detected near ${closestServer.city}`);
+
+    // Small delay to let UI settle before starting
+    const t = window.setTimeout(() => {
+      runPingTest(server);
+    }, 500);
+
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closestServer]);
 
   const clearAllTimeouts = useCallback(() => {
@@ -277,7 +289,13 @@ const PingTestSection: React.FC = () => {
           ) : (
             <div className="text-sm text-[#6B7280]">
               <MapPin size={14} className="inline mr-1" />
-              Tap a server below to test your ping
+              Tap a server below to test your ping, or
+              <button
+                onClick={() => detect()}
+                className="ml-1 text-[#E85D4E] hover:underline bg-transparent border-0 cursor-pointer"
+              >
+                try detecting your location
+              </button>
             </div>
           )}
         </div>
@@ -379,7 +397,9 @@ const PingTestSection: React.FC = () => {
                   <div className="text-center mb-6">
                     <div className="text-4xl mb-3">🌐</div>
                     <p className="text-[#9CA3AF]">
-                      {closestServer ? `Auto-detecting closest server...` : 'Tap a server to test your ping'}
+                      {closestServer
+                        ? `Closest: ${closestServer.city} (${distance}mi) — tap a server or wait for auto-test`
+                        : 'Tap a server to test your ping'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center">
@@ -475,7 +495,7 @@ const PingTestSection: React.FC = () => {
                       )}
                     </div>
                     <Button variant="secondary" size="sm" className="mt-6"
-                      onClick={() => { setState('idle'); setSelectedServer(null); setPingResult(0); setProgress(0); }}>
+                      onClick={() => { setState('idle'); setSelectedServer(null); setPingResult(0); setProgress(0); hasAutoRun.current = false; }}>
                       Test Again
                     </Button>
                   </div>
