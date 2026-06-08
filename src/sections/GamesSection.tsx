@@ -5,19 +5,19 @@ import { useInView } from '@/hooks/useInView';
 interface Game {
   name: string;
   platforms: string[];
-  gradient: string;
+  image: string;
 }
 
 const games: Game[] = [
-  { name: 'League of Legends', platforms: ['PC'], gradient: 'from-[#091428] to-[#0A1428]' },
-  { name: 'Valorant', platforms: ['PC'], gradient: 'from-[#1a1a2e] to-[#16213e]' },
-  { name: 'Counter-Strike 2', platforms: ['PC'], gradient: 'from-[#1a1a1a] to-[#2d2d2d]' },
-  { name: 'Fortnite', platforms: ['PC', 'PS', 'Xbox', 'Switch'], gradient: 'from-[#1a0a2e] to-[#162944]' },
-  { name: 'Call of Duty: Warzone', platforms: ['PC', 'PS', 'Xbox'], gradient: 'from-[#0f2a1d] to-[#1a3a2d]' },
-  { name: 'Apex Legends', platforms: ['PC', 'PS', 'Xbox', 'Switch'], gradient: 'from-[#2a1a0a] to-[#3d2a1a]' },
-  { name: 'PUBG', platforms: ['PC', 'PS', 'Xbox'], gradient: 'from-[#1a1a0a] to-[#2d2d1a]' },
-  { name: 'Overwatch 2', platforms: ['PC', 'PS', 'Xbox', 'Switch'], gradient: 'from-[#0a1a2e] to-[#1a2a3e]' },
-  { name: 'Dota 2', platforms: ['PC'], gradient: 'from-[#2a0a0a] to-[#3d1a1a]' },
+  { name: 'League of Legends', platforms: ['PC'], image: '/games/lol.jpg' },
+  { name: 'Valorant', platforms: ['PC'], image: '/games/valorant.jpg' },
+  { name: 'Counter-Strike 2', platforms: ['PC'], image: '/games/cs2.jpg' },
+  { name: 'Fortnite', platforms: ['PC', 'PS', 'Xbox', 'Switch'], image: '/games/fortnite.jpg' },
+  { name: 'Call of Duty: Warzone', platforms: ['PC', 'PS', 'Xbox'], image: '/games/warzone.jpg' },
+  { name: 'Apex Legends', platforms: ['PC', 'PS', 'Xbox', 'Switch'], image: '/games/apex.jpg' },
+  { name: 'PUBG', platforms: ['PC', 'PS', 'Xbox'], image: '/games/pubg.jpg' },
+  { name: 'Overwatch 2', platforms: ['PC', 'PS', 'Xbox', 'Switch'], image: '/games/overwatch2.jpg' },
+  { name: 'Dota 2', platforms: ['PC'], image: '/games/dota2.jpg' },
 ];
 
 const platformIcons: Record<string, string> = {
@@ -53,15 +53,18 @@ const GamesSection: React.FC = () => {
               }`}
               style={{ transitionDelay: isInView ? `${i * 80}ms` : '0ms' }}
             >
-              {/* Game image area */}
-              <div className={`relative aspect-video bg-gradient-to-br ${game.gradient} overflow-hidden`}>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-5xl opacity-30 group-hover:opacity-50 group-hover:scale-110 transition-all duration-400">
-                    🎮
-                  </span>
-                </div>
+              {/* Game image */}
+              <div className="relative aspect-video overflow-hidden">
+                <img
+                  src={game.image}
+                  alt={game.name}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  loading="lazy"
+                />
+                {/* Dark overlay on hover */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
                 {/* Optimized badge */}
-                <div className="absolute top-3 right-3 bg-[rgba(74,222,128,0.15)] text-[#4ADE80] text-[10px] uppercase tracking-wider px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+                <div className="absolute top-3 right-3 bg-[rgba(74,222,128,0.15)] text-[#4ADE80] text-[10px] uppercase tracking-wider px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 backdrop-blur-sm border border-[rgba(74,222,128,0.2)]">
                   Optimized
                 </div>
               </div>
