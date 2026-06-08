@@ -27,7 +27,7 @@ const features: Feature[] = [
   {
     icon: Zap,
     title: 'Zero Lag',
-    description: 'Gaming-optimized protocols cut latency to the bone. Sub-30ms ping on major titles with zero packet loss.',
+    description: 'Gaming-optimized WireGuard protocol cuts latency. Real-time ping testing finds your fastest route every time.',
     speed: 1.0,
     column: 2,
     floatDelay: -1,
@@ -35,7 +35,7 @@ const features: Feature[] = [
   {
     icon: Globe,
     title: 'Global Servers',
-    description: '90+ server cities across 6 continents. Smart routing automatically finds the fastest path to your game server.',
+    description: '19 global locations across 6 continents. Smart routing automatically finds the fastest path to your game server.',
     speed: 0.7,
     column: 3,
     floatDelay: -2,

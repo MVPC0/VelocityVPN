@@ -108,7 +108,7 @@ const TestimonialsSection: React.FC = () => {
       <div className="max-w-[1000px] mx-auto px-6 lg:px-12">
         <SectionHeader
           eyebrow="REVIEWS"
-          title="Trusted by 100,000+ Gamers"
+          title="What Gamers Say"
           centered
         />
 

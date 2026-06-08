@@ -7,7 +7,7 @@ const plans = [
     price: 12.99,
     period: '/month',
     desc: 'Flexible. Cancel anytime.',
-    features: ['All 90+ servers', 'WireGuard', 'DDoS protection', 'Kill switch', '5 devices'],
+    features: ['All 19 servers', 'WireGuard', 'DDoS protection', 'Kill switch', '5 devices'],
     popular: false,
   },
   {
@@ -16,7 +16,7 @@ const plans = [
     period: '/month',
     badge: 'SAVE 54%',
     desc: '$71.88 billed annually.',
-    features: ['All 90+ servers', 'All protocols', 'DDoS protection', 'Kill switch', '10 devices', 'Port forwarding'],
+    features: ['All 19 servers', 'All protocols', 'DDoS protection', 'Kill switch', '10 devices', 'Port forwarding'],
     popular: true,
   },
   {
@@ -25,7 +25,7 @@ const plans = [
     period: '/month',
     badge: 'SAVE 69%',
     desc: '$95.76 billed every 2 years.',
-    features: ['All 90+ servers', 'All protocols', 'DDoS protection', 'Kill switch', 'Unlimited devices', 'Port forwarding', 'Dedicated IP'],
+    features: ['All 19 servers', 'All protocols', 'DDoS protection', 'Kill switch', 'Unlimited devices', 'Port forwarding', 'Dedicated IP'],
     popular: false,
   },
 ];
@@ -93,9 +93,9 @@ export default function Pricing() {
           <h2 className="font-['Archivo'] text-2xl text-center mb-8">Every Plan Includes</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
-              { icon: Zap, title: 'Gaming-Optimized', desc: 'Sub-30ms ping' },
+              { icon: Zap, title: 'Gaming-Optimized', desc: 'WireGuard protocol' },
               { icon: Shield, title: 'DDoS Protection', desc: 'Your IP stays hidden' },
-              { icon: Users, title: '90+ Locations', desc: 'Play worldwide' },
+              { icon: Users, title: '19 Locations', desc: 'Play worldwide' },
               { icon: Clock, title: '30-Day Guarantee', desc: 'Full refund' },
             ].map((f) => (
               <div key={f.title} className="text-center">

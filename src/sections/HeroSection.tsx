@@ -402,10 +402,10 @@ const HeroSection: React.FC = () => {
 
   const stats = useMemo(
     () => [
-      { value: 90, suffix: '+', label: 'Server Cities', color: 'text-[#9B6DFF]' },
-      { value: 3, suffix: 'ms', label: 'Lowest Ping', color: 'text-[#4ADE80]' },
-      { value: 100, suffix: 'K+', label: 'Active Gamers', color: 'text-[#E85D4E]' },
-      { value: 99.9, suffix: '%', label: 'Uptime', color: 'text-[#A3B8D4]', decimals: 1 },
+      { value: 19, suffix: '', label: 'Global Locations', color: 'text-[#9B6DFF]' },
+      { value: 0, suffix: '', label: 'Live Ping Test', color: 'text-[#4ADE80]', isText: true, textValue: 'Real-Time' },
+      { value: 0, suffix: '', label: 'Protocol', color: 'text-[#E85D4E]', isText: true, textValue: 'WireGuard' },
+      { value: 0, suffix: '', label: 'Security', color: 'text-[#A3B8D4]', isText: true, textValue: 'DDoS Protected' },
     ],
     []
   );
@@ -441,8 +441,8 @@ const HeroSection: React.FC = () => {
           className="mt-6 text-[#D1D5DB] text-center max-w-[560px]"
           style={{ fontSize: 'clamp(16px, 1.8vw, 20px)', lineHeight: 1.6 }}
         >
-          Route-optimized servers in 90 cities. DDoS protection. Sub-30ms ping on
-          major titles.
+          Route-optimized servers in 19 global locations. DDoS protection.
+          Live ping testing to find your fastest server.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 mt-10">
@@ -478,7 +478,9 @@ const HeroSection: React.FC = () => {
               )}
               <div className="text-center">
                 <div className={`font-['JetBrains_Mono'] text-2xl md:text-3xl ${stat.color}`}>
-                  <CountUp end={stat.value} duration={2} decimals={stat.decimals || 0} suffix={stat.suffix} />
+                  {(stat as any).isText
+                    ? (stat as any).textValue
+                    : <CountUp end={stat.value} duration={2} decimals={(stat as any).decimals || 0} suffix={stat.suffix} />}
                 </div>
                 <div className="text-eyebrow mt-1 text-[10px] md:text-xs text-[#6B7280]">
                   {stat.label}

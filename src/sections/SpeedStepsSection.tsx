@@ -7,13 +7,13 @@ gsap.registerPlugin(ScrollTrigger);
 
 const steps = [
   { num: '01', title: 'Connect', desc: 'Download VelocityVPN and connect with one click. Military-grade encryption keeps your traffic safe from the start.', icon: '🔌' },
-  { num: '02', title: 'Select Server', desc: 'Pick from 90+ server cities worldwide. Our smart recommendation engine suggests the best server for your game.', icon: '🌐' },
+  { num: '02', title: 'Select Server', desc: 'Pick from 19 global locations. Our smart recommendation engine suggests the best server for your game.', icon: '🌐' },
   { num: '03', title: 'Auto-Optimize', desc: 'VelocityVPN automatically detects your game and applies optimized routing settings for the lowest possible ping.', icon: '⚡' },
   { num: '04', title: 'Launch Game', desc: 'Launch your favorite game with confidence. Your connection is now protected, optimized, and ready for competitive play.', icon: '🎮' },
   { num: '05', title: 'DDoS Shield', desc: 'Your real IP is hidden behind our servers. DDoS attacks hit our infrastructure, not your connection. Stay in the game.', icon: '🛡️' },
-  { num: '06', title: 'Low Latency', desc: 'Sub-30ms ping on League of Legends, Valorant, CS2, and more. Our gaming-optimized routing cuts the lag.', icon: '📶' },
+  { num: '06', title: 'Low Latency', desc: 'Live ping testing to League of Legends, Valorant, CS2, and more servers. Find your fastest route every time.', icon: '📶' },
   { num: '07', title: 'Global Access', desc: 'Play on any regional server. Access early releases, region-locked content, and play with friends worldwide.', icon: '📍' },
-  { num: '08', title: 'Rank Up', desc: 'With lower ping and zero packet loss, climb the ranks faster. Join 100,000+ gamers who\'ve already made the switch.', icon: '🏆' },
+  { num: '08', title: 'Rank Up', desc: 'With lower ping and zero packet loss, climb the ranks faster. Get the competitive edge you need to win.', icon: '🏆' },
 ];
 
 function createFaceTexture(step: typeof steps[0]): THREE.CanvasTexture {

@@ -25,7 +25,7 @@ export default function CTASection() {
         </h2>
 
         <p className="mt-6 text-[#D1D5DB] max-w-[560px] mx-auto text-lg">
-          Join 100,000+ gamers who&apos;ve already made the switch. 30-day money-back guarantee.
+          Start your 3-day free trial today. No credit card required. 30-day money-back guarantee.
         </p>
 
         <div className="mt-10">
@@ -42,7 +42,7 @@ export default function CTASection() {
           {[
             { icon: Shield, text: 'Military-Grade Encryption' },
             { icon: Clock, text: '30-Day Money-Back' },
-            { icon: Users, text: '100,000+ Gamers' },
+            { icon: Users, text: 'Free 3-Day Trial' },
           ].map((badge) => (
             <div key={badge.text} className="flex items-center gap-2 text-[#6B7280]">
               <badge.icon size={16} className="text-[#E85D4E]" />

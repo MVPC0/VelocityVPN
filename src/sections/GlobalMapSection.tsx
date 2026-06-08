@@ -273,7 +273,7 @@ const GlobalMapSection: React.FC = () => {
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <SectionHeader
           eyebrow="GLOBAL NETWORK"
-          title="90+ Cities, One Goal"
+          title="19 Locations, One Goal"
           subtitle="Gaming-optimized servers on every continent. Smart routing finds the fastest path, every time."
         />
 
