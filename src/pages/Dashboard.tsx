@@ -32,51 +32,123 @@ interface Connection {
 }
 
 const SERVER_LOCATIONS: ServerLocation[] = [
-  { id: 1, city: "New York", countryCode: "US", lat: 40.7128, lng: -74.0060 },
-  { id: 2, city: "Los Angeles", countryCode: "US", lat: 34.0522, lng: -118.2437 },
-  { id: 3, city: "London", countryCode: "GB", lat: 51.5074, lng: -0.1278 },
-  { id: 4, city: "Frankfurt", countryCode: "DE", lat: 50.1109, lng: 8.6821 },
+  { id: 1, city: "Los Angeles", countryCode: "US", lat: 34.0522, lng: -118.2437 },
+  { id: 2, city: "Dallas", countryCode: "US", lat: 32.7767, lng: -96.7970 },
+  { id: 3, city: "Chicago", countryCode: "US", lat: 41.8781, lng: -87.6298 },
+  { id: 4, city: "New York", countryCode: "US", lat: 40.7128, lng: -74.0060 },
   { id: 5, city: "Tokyo", countryCode: "JP", lat: 35.6762, lng: 139.6503 },
-  { id: 6, city: "Singapore", countryCode: "SG", lat: 1.3521, lng: 103.8198 },
-  { id: 7, city: "Sydney", countryCode: "AU", lat: -33.8688, lng: 151.2093 },
-  { id: 8, city: "Sao Paulo", countryCode: "BR", lat: -23.5505, lng: -46.6333 },
-  { id: 9, city: "Dubai", countryCode: "AE", lat: 25.2048, lng: 55.2708 },
-  { id: 10, city: "Stockholm", countryCode: "SE", lat: 59.3293, lng: 18.0686 },
+  { id: 6, city: "Amsterdam", countryCode: "NL", lat: 52.3676, lng: 4.9041 },
+  { id: 7, city: "Seoul", countryCode: "KR", lat: 37.5665, lng: 126.9780 },
+  { id: 8, city: "London", countryCode: "GB", lat: 51.5074, lng: -0.1278 },
+  { id: 9, city: "Auckland", countryCode: "NZ", lat: -36.8485, lng: 174.7633 },
+  { id: 10, city: "Warsaw", countryCode: "PL", lat: 52.2297, lng: 21.0122 },
+  { id: 11, city: "Sydney", countryCode: "AU", lat: -33.8688, lng: 151.2093 },
+  { id: 12, city: "Hong Kong", countryCode: "HK", lat: 22.3193, lng: 114.1694 },
+  { id: 13, city: "Perth", countryCode: "AU", lat: -31.9505, lng: 115.8605 },
+  { id: 14, city: "Stockholm", countryCode: "SE", lat: 59.3293, lng: 18.0686 },
+  { id: 15, city: "Singapore", countryCode: "SG", lat: 1.3521, lng: 103.8198 },
+  { id: 16, city: "Sao Paulo", countryCode: "BR", lat: -23.5505, lng: -46.6333 },
+  { id: 17, city: "Mumbai", countryCode: "IN", lat: 19.0760, lng: 72.8777 },
+  { id: 18, city: "Dubai", countryCode: "AE", lat: 25.2048, lng: 55.2708 },
+  { id: 19, city: "Johannesburg", countryCode: "ZA", lat: -26.2041, lng: 28.0473 },
+  { id: 20, city: "San Francisco", countryCode: "US", lat: 37.7749, lng: -122.4194 },
+  { id: 21, city: "Miami", countryCode: "US", lat: 25.7617, lng: -80.1918 },
+  { id: 22, city: "Denver", countryCode: "US", lat: 39.7392, lng: -104.9903 },
+  { id: 23, city: "Washington DC", countryCode: "US", lat: 38.9072, lng: -77.0369 },
+  { id: 24, city: "Osaka", countryCode: "JP", lat: 34.6937, lng: 135.5023 },
+  { id: 25, city: "Frankfurt", countryCode: "DE", lat: 50.1109, lng: 8.6821 },
+  { id: 26, city: "Busan", countryCode: "KR", lat: 35.1796, lng: 129.0756 },
+  { id: 27, city: "Manchester", countryCode: "GB", lat: 53.4808, lng: -2.2426 },
+  { id: 28, city: "Wellington", countryCode: "NZ", lat: -41.2865, lng: 174.7762 },
+  { id: 29, city: "Prague", countryCode: "CZ", lat: 50.0755, lng: 14.4378 },
+  { id: 30, city: "Melbourne", countryCode: "AU", lat: -37.8136, lng: 144.9631 },
+  { id: 31, city: "Rio de Janeiro", countryCode: "BR", lat: -22.9068, lng: -43.1729 },
+  { id: 32, city: "Bangalore", countryCode: "IN", lat: 12.9716, lng: 77.5946 },
+  { id: 33, city: "Cape Town", countryCode: "ZA", lat: -33.9249, lng: 18.4241 },
+  { id: 34, city: "Helsinki", countryCode: "FI", lat: 60.1699, lng: 24.9384 },
 ];
 
 const FLAG_MAP: Record<string, string> = {
   US: "\uD83C\uDDFA\uD83C\uDDF8", GB: "\uD83C\uDDEC\uD83C\uDDE7", DE: "\uD83C\uDDE9\uD83C\uDDEA",
   JP: "\uD83C\uDDEF\uD83C\uDDF5", SG: "\uD83C\uDDF8\uD83C\uDDEC", AU: "\uD83C\uDDE6\uD83C\uDDFA",
   BR: "\uD83C\uDDE7\uD83C\uDDF7", AE: "\uD83C\uDDE6\uD83C\uDDEA", SE: "\uD83C\uDDF8\uD83C\uDDEA",
-  CA: "\uD83C\uDDE8\uD83C\uDDE6", NL: "\uD83C\uDDF3\uD83C\uDDF1", FR: "\uD83C\uDDEB\uD83C\uDDF7",
-  PL: "\uD83C\uDDF5\uD83C\uDDF1", IN: "\uD83C\uDDEE\uD83C\uDDF3", HK: "\uD83C\uDDED\uD83C\uDDF0",
-  KR: "\uD83C\uDDF0\uD83C\uDDF7", ES: "\uD83C\uDDEA\uD83C\uDDF8",
+  NL: "\uD83C\uDDF3\uD83C\uDDF1", PL: "\uD83C\uDDF5\uD83C\uDDF1", IN: "\uD83C\uDDEE\uD83C\uDDF3",
+  HK: "\uD83C\uDDED\uD83C\uDDF0", KR: "\uD83C\uDDF0\uD83C\uDDF7", NZ: "\uD83C\uDDF3\uD83C\uDDFF",
+  ZA: "\uD83C\uDDFF\uD83C\uDDE6", CZ: "\uD83C\uDDE8\uD83C\uDDFF", FI: "\uD83C\uDDEB\uD83C\uDDEE",
 };
 
 const INITIAL_SERVERS: VPNServer[] = [
-  { id: 1, name: "US-East-1", city: "New York", country: "United States", countryCode: "US", region: "north_america", hostname: "ny-us.velocityvpn.com", load: 23, ping: 18, jitter: 2, protocol: "wireguard" },
-  { id: 2, name: "US-West-1", city: "Los Angeles", country: "United States", countryCode: "US", region: "north_america", hostname: "la-us.velocityvpn.com", load: 45, ping: 35, jitter: 4, protocol: "wireguard" },
-  { id: 3, name: "EU-West-1", city: "London", country: "United Kingdom", countryCode: "GB", region: "europe", hostname: "lon-uk.velocityvpn.com", load: 31, ping: 22, jitter: 3, protocol: "wireguard" },
-  { id: 4, name: "EU-Central-1", city: "Frankfurt", country: "Germany", countryCode: "DE", region: "europe", hostname: "fra-de.velocityvpn.com", load: 19, ping: 20, jitter: 2, protocol: "wireguard" },
-  { id: 5, name: "AP-Northeast-1", city: "Tokyo", country: "Japan", countryCode: "JP", region: "asia_pacific", hostname: "tok-jp.velocityvpn.com", load: 52, ping: 42, jitter: 5, protocol: "wireguard" },
-  { id: 6, name: "AP-Southeast-1", city: "Singapore", country: "Singapore", countryCode: "SG", region: "asia_pacific", hostname: "sin-sg.velocityvpn.com", load: 38, ping: 48, jitter: 4, protocol: "wireguard" },
-  { id: 7, name: "AP-Southeast-2", city: "Sydney", country: "Australia", countryCode: "AU", region: "asia_pacific", hostname: "syd-au.velocityvpn.com", load: 15, ping: 58, jitter: 6, protocol: "wireguard" },
-  { id: 8, name: "SA-East-1", city: "Sao Paulo", country: "Brazil", countryCode: "BR", region: "south_america", hostname: "sao-br.velocityvpn.com", load: 28, ping: 68, jitter: 7, protocol: "wireguard" },
-  { id: 9, name: "ME-South-1", city: "Dubai", country: "UAE", countryCode: "AE", region: "middle_east", hostname: "dxb-ae.velocityvpn.com", load: 41, ping: 52, jitter: 5, protocol: "wireguard" },
-  { id: 10, name: "EU-North-1", city: "Stockholm", country: "Sweden", countryCode: "SE", region: "europe", hostname: "sto-se.velocityvpn.com", load: 12, ping: 25, jitter: 2, protocol: "wireguard" },
+  { id: 1, name: "US-West", city: "Los Angeles", country: "United States", countryCode: "US", region: "north_america", hostname: "la-us.velocityvpn.com", load: 45, ping: 35, jitter: 4, protocol: "wireguard" },
+  { id: 2, name: "US-South", city: "Dallas", country: "United States", countryCode: "US", region: "north_america", hostname: "dal-us.velocityvpn.com", load: 33, ping: 28, jitter: 3, protocol: "wireguard" },
+  { id: 3, name: "US-Central", city: "Chicago", country: "United States", countryCode: "US", region: "north_america", hostname: "chi-us.velocityvpn.com", load: 29, ping: 24, jitter: 3, protocol: "wireguard" },
+  { id: 4, name: "US-East", city: "New York", country: "United States", countryCode: "US", region: "north_america", hostname: "ny-us.velocityvpn.com", load: 23, ping: 18, jitter: 2, protocol: "wireguard" },
+  { id: 5, name: "Japan", city: "Tokyo", country: "Japan", countryCode: "JP", region: "asia_pacific", hostname: "tok-jp.velocityvpn.com", load: 52, ping: 42, jitter: 5, protocol: "wireguard" },
+  { id: 6, name: "Europe-West", city: "Amsterdam", country: "Netherlands", countryCode: "NL", region: "europe", hostname: "ams-nl.velocityvpn.com", load: 27, ping: 21, jitter: 2, protocol: "wireguard" },
+  { id: 7, name: "South Korea", city: "Seoul", country: "South Korea", countryCode: "KR", region: "asia_pacific", hostname: "sel-kr.velocityvpn.com", load: 48, ping: 40, jitter: 5, protocol: "wireguard" },
+  { id: 8, name: "UK", city: "London", country: "United Kingdom", countryCode: "GB", region: "europe", hostname: "lon-uk.velocityvpn.com", load: 31, ping: 22, jitter: 3, protocol: "wireguard" },
+  { id: 9, name: "New Zealand", city: "Auckland", country: "New Zealand", countryCode: "NZ", region: "oceania", hostname: "akl-nz.velocityvpn.com", load: 15, ping: 62, jitter: 6, protocol: "wireguard" },
+  { id: 10, name: "Europe-East", city: "Warsaw", country: "Poland", countryCode: "PL", region: "europe", hostname: "waw-pl.velocityvpn.com", load: 18, ping: 26, jitter: 2, protocol: "wireguard" },
+  { id: 11, name: "Australia-East", city: "Sydney", country: "Australia", countryCode: "AU", region: "oceania", hostname: "syd-au.velocityvpn.com", load: 19, ping: 58, jitter: 6, protocol: "wireguard" },
+  { id: 12, name: "Hong Kong", city: "Hong Kong", country: "Hong Kong", countryCode: "HK", region: "asia_pacific", hostname: "hkg-hk.velocityvpn.com", load: 44, ping: 45, jitter: 4, protocol: "wireguard" },
+  { id: 13, name: "Australia-West", city: "Perth", country: "Australia", countryCode: "AU", region: "oceania", hostname: "per-au.velocityvpn.com", load: 12, ping: 65, jitter: 7, protocol: "wireguard" },
+  { id: 14, name: "Europe-North", city: "Stockholm", country: "Sweden", countryCode: "SE", region: "europe", hostname: "sto-se.velocityvpn.com", load: 14, ping: 25, jitter: 2, protocol: "wireguard" },
+  { id: 15, name: "Singapore", city: "Singapore", country: "Singapore", countryCode: "SG", region: "asia_pacific", hostname: "sin-sg.velocityvpn.com", load: 38, ping: 48, jitter: 4, protocol: "wireguard" },
+  { id: 16, name: "Brazil", city: "Sao Paulo", country: "Brazil", countryCode: "BR", region: "south_america", hostname: "sao-br.velocityvpn.com", load: 28, ping: 68, jitter: 7, protocol: "wireguard" },
+  { id: 17, name: "Mumbai", city: "Mumbai", country: "India", countryCode: "IN", region: "asia_pacific", hostname: "bom-in.velocityvpn.com", load: 41, ping: 55, jitter: 6, protocol: "wireguard" },
+  { id: 18, name: "Dubai", city: "Dubai", country: "UAE", countryCode: "AE", region: "middle_east", hostname: "dxb-ae.velocityvpn.com", load: 35, ping: 52, jitter: 5, protocol: "wireguard" },
+  { id: 19, name: "South Africa", city: "Johannesburg", country: "South Africa", countryCode: "ZA", region: "africa", hostname: "jnb-za.velocityvpn.com", load: 22, ping: 72, jitter: 7, protocol: "wireguard" },
+  { id: 20, name: "US-West 2", city: "San Francisco", country: "United States", countryCode: "US", region: "north_america", hostname: "sf-us.velocityvpn.com", load: 40, ping: 38, jitter: 4, protocol: "wireguard" },
+  { id: 21, name: "US-South 2", city: "Miami", country: "United States", countryCode: "US", region: "north_america", hostname: "mia-us.velocityvpn.com", load: 30, ping: 32, jitter: 3, protocol: "wireguard" },
+  { id: 22, name: "US-Central 2", city: "Denver", country: "United States", countryCode: "US", region: "north_america", hostname: "den-us.velocityvpn.com", load: 25, ping: 27, jitter: 3, protocol: "wireguard" },
+  { id: 23, name: "US-East 2", city: "Washington DC", country: "United States", countryCode: "US", region: "north_america", hostname: "dc-us.velocityvpn.com", load: 20, ping: 19, jitter: 2, protocol: "wireguard" },
+  { id: 24, name: "Japan 2", city: "Osaka", country: "Japan", countryCode: "JP", region: "asia_pacific", hostname: "osa-jp.velocityvpn.com", load: 46, ping: 44, jitter: 5, protocol: "wireguard" },
+  { id: 25, name: "Europe-West 2", city: "Frankfurt", country: "Germany", countryCode: "DE", region: "europe", hostname: "fra-de.velocityvpn.com", load: 24, ping: 20, jitter: 2, protocol: "wireguard" },
+  { id: 26, name: "South Korea 2", city: "Busan", country: "South Korea", countryCode: "KR", region: "asia_pacific", hostname: "pus-kr.velocityvpn.com", load: 42, ping: 43, jitter: 5, protocol: "wireguard" },
+  { id: 27, name: "UK 2", city: "Manchester", country: "United Kingdom", countryCode: "GB", region: "europe", hostname: "man-uk.velocityvpn.com", load: 28, ping: 23, jitter: 3, protocol: "wireguard" },
+  { id: 28, name: "New Zealand 2", city: "Wellington", country: "New Zealand", countryCode: "NZ", region: "oceania", hostname: "wlg-nz.velocityvpn.com", load: 13, ping: 64, jitter: 6, protocol: "wireguard" },
+  { id: 29, name: "Europe-East 2", city: "Prague", country: "Czech Republic", countryCode: "CZ", region: "europe", hostname: "prg-cz.velocityvpn.com", load: 16, ping: 27, jitter: 2, protocol: "wireguard" },
+  { id: 30, name: "Australia-East 2", city: "Melbourne", country: "Australia", countryCode: "AU", region: "oceania", hostname: "mel-au.velocityvpn.com", load: 17, ping: 60, jitter: 6, protocol: "wireguard" },
+  { id: 31, name: "Brazil 2", city: "Rio de Janeiro", country: "Brazil", countryCode: "BR", region: "south_america", hostname: "rio-br.velocityvpn.com", load: 26, ping: 70, jitter: 7, protocol: "wireguard" },
+  { id: 32, name: "Mumbai 2", city: "Bangalore", country: "India", countryCode: "IN", region: "asia_pacific", hostname: "blr-in.velocityvpn.com", load: 39, ping: 56, jitter: 5, protocol: "wireguard" },
+  { id: 33, name: "South Africa 2", city: "Cape Town", country: "South Africa", countryCode: "ZA", region: "africa", hostname: "cpt-za.velocityvpn.com", load: 20, ping: 74, jitter: 7, protocol: "wireguard" },
+  { id: 34, name: "Europe-North 2", city: "Helsinki", country: "Finland", countryCode: "FI", region: "europe", hostname: "hel-fi.velocityvpn.com", load: 11, ping: 28, jitter: 2, protocol: "wireguard" },
 ];
 
 const PING_TARGETS: Record<number, string> = {
-  1: "https://www.google.com",
-  2: "https://www.cloudflare.com",
-  3: "https://www.bbc.co.uk",
-  4: "https://www.bundesregierung.de",
+  1: "https://www.cloudflare.com",
+  2: "https://www.att.com",
+  3: "https://www.chicago.gov",
+  4: "https://www.google.com",
   5: "https://www.yahoo.co.jp",
-  6: "https://www.gov.sg",
-  7: "https://www.gov.au",
-  8: "https://www.gov.br",
-  9: "https://www.google.ae",
-  10: "https://www.regeringen.se",
+  6: "https://www.rijksoverheid.nl",
+  7: "https://www.go.kr",
+  8: "https://www.bbc.co.uk",
+  9: "https://www.govt.nz",
+  10: "https://www.gov.pl",
+  11: "https://www.gov.au",
+  12: "https://www.gov.hk",
+  13: "https://www.wa.gov.au",
+  14: "https://www.regeringen.se",
+  15: "https://www.gov.sg",
+  16: "https://www.gov.br",
+  17: "https://www.india.gov.in",
+  18: "https://www.google.ae",
+  19: "https://www.gov.za",
+  20: "https://www.sfgov.org",
+  21: "https://www.miamidade.gov",
+  22: "https://www.denvergov.org",
+  23: "https://www.dc.gov",
+  24: "https://www.city.osaka.lg.jp",
+  25: "https://www.bundesregierung.de",
+  26: "https://www.busan.go.kr",
+  27: "https://www.manchester.gov.uk",
+  28: "https://www.wellingtonnz.govt.nz",
+  29: "https://www.praha.eu",
+  30: "https://www.melbourne.vic.gov.au",
+  31: "https://www.rio.rj.gov.br",
+  32: "https://www.karnataka.gov.in",
+  33: "https://www.capetown.gov.za",
+  34: "https://www.hel.fi",
 };
 
 function measurePingImage(endpoint: string): Promise<number> {
@@ -212,25 +284,40 @@ function LockedOverlay({
 
 // Approximate SVG coordinates (0-100 scale) for each server city
 const SERVER_COORDS: Record<number, { x: number; y: number }> = {
-  1: { x: 26, y: 36 },   // New York
-  2: { x: 16, y: 38 },   // Los Angeles
-  3: { x: 47, y: 28 },   // London
-  4: { x: 51, y: 30 },   // Frankfurt
-  5: { x: 84, y: 36 },   // Tokyo
-  6: { x: 75, y: 55 },   // Singapore
-  7: { x: 88, y: 72 },   // Sydney
-  8: { x: 31, y: 70 },   // Sao Paulo
-  9: { x: 60, y: 44 },   // Dubai
-  10: { x: 54, y: 22 },  // Stockholm
-  11: { x: 23, y: 34 },  // Chicago
-  12: { x: 25, y: 32 },  // Toronto
-  13: { x: 49, y: 28 },  // Amsterdam
-  14: { x: 48, y: 31 },  // Paris
-  15: { x: 53, y: 29 },  // Warsaw
-  16: { x: 66, y: 48 },  // Mumbai
-  17: { x: 78, y: 46 },  // Hong Kong
-  18: { x: 82, y: 35 },  // Seoul
-  19: { x: 45, y: 35 },  // Madrid
+  1: { x: 14, y: 36 },   // Los Angeles (US-West)
+  2: { x: 22, y: 39 },   // Dallas (US-South)
+  3: { x: 25, y: 33 },   // Chicago (US-Central)
+  4: { x: 28, y: 35 },   // New York (US-East)
+  5: { x: 85, y: 35 },   // Tokyo (Japan)
+  6: { x: 49, y: 28 },   // Amsterdam (Europe-West)
+  7: { x: 83, y: 34 },   // Seoul (South Korea)
+  8: { x: 47, y: 29 },   // London (UK)
+  9: { x: 92, y: 78 },   // Auckland (New Zealand)
+  10: { x: 53, y: 30 },  // Warsaw (Europe-East)
+  11: { x: 88, y: 72 },  // Sydney (Australia-East)
+  12: { x: 78, y: 45 },  // Hong Kong
+  13: { x: 82, y: 68 },  // Perth (Australia-West)
+  14: { x: 53, y: 20 },  // Stockholm (Europe-North)
+  15: { x: 75, y: 52 },  // Singapore
+  16: { x: 32, y: 68 },  // Sao Paulo (Brazil)
+  17: { x: 66, y: 46 },  // Mumbai
+  18: { x: 60, y: 42 },  // Dubai
+  19: { x: 55, y: 76 },  // Johannesburg (South Africa)
+  20: { x: 12, y: 34 },  // San Francisco (US-West 2)
+  21: { x: 27, y: 41 },  // Miami (US-South 2)
+  22: { x: 20, y: 34 },  // Denver (US-Central 2)
+  23: { x: 28, y: 36 },  // Washington DC (US-East 2)
+  24: { x: 84, y: 37 },  // Osaka (Japan 2)
+  25: { x: 51, y: 30 },  // Frankfurt (Europe-West 2)
+  26: { x: 83, y: 36 },  // Busan (South Korea 2)
+  27: { x: 46, y: 27 },  // Manchester (UK 2)
+  28: { x: 93, y: 80 },  // Wellington (New Zealand 2)
+  29: { x: 53, y: 31 },  // Prague (Europe-East 2)
+  30: { x: 87, y: 74 },  // Melbourne (Australia-East 2)
+  31: { x: 34, y: 66 },  // Rio de Janeiro (Brazil 2)
+  32: { x: 68, y: 50 },  // Bangalore (Mumbai 2)
+  33: { x: 54, y: 80 },  // Cape Town (South Africa 2)
+  34: { x: 56, y: 18 },  // Helsinki (Europe-North 2)
 };
 
 // Load level thresholds and labels

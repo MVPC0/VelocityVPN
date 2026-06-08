@@ -402,7 +402,7 @@ const HeroSection: React.FC = () => {
 
   const stats = useMemo(
     () => [
-      { value: 19, suffix: '', label: 'Global Locations', color: 'text-[#9B6DFF]' },
+      { value: 34, suffix: '', label: 'Global Locations', color: 'text-[#9B6DFF]' },
       { value: 0, suffix: '', label: 'Live Ping Test', color: 'text-[#4ADE80]', isText: true, textValue: 'Real-Time' },
       { value: 0, suffix: '', label: 'Protocol', color: 'text-[#E85D4E]', isText: true, textValue: 'WireGuard' },
       { value: 0, suffix: '', label: 'Security', color: 'text-[#A3B8D4]', isText: true, textValue: 'DDoS Protected' },
@@ -441,7 +441,7 @@ const HeroSection: React.FC = () => {
           className="mt-6 text-[#D1D5DB] text-center max-w-[560px]"
           style={{ fontSize: 'clamp(16px, 1.8vw, 20px)', lineHeight: 1.6 }}
         >
-          Route-optimized servers in 19 global locations. DDoS protection.
+          Route-optimized servers in 34 global locations. DDoS protection.
           Live ping testing to find your fastest server.
         </p>
 
