@@ -80,7 +80,88 @@ function getBasePlayersForRegion(region: string): number {
   return bases[region] ?? 300;
 }
 
-function modelPlayerCount(serverId: number, region: string): number {
+// ─── Holiday & Event System ───────────────────────────────────
+
+interface GameEvent {
+  name: string;
+  multiplier: number;
+  regions: string[]; // "all" or specific regions
+}
+
+function getActiveEvents(now: Date): GameEvent[] {
+  const month = now.getUTCMonth(); // 0-11
+  const date = now.getUTCDate();
+  const dayOfWeek = now.getUTCDay(); // 0=Sunday
+  const events: GameEvent[] = [];
+
+  // Weekend (Friday evening through Sunday night)
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    events.push({ name: "Weekend", multiplier: 1.3, regions: ["all"] });
+  } else if (dayOfWeek === 5) {
+    events.push({ name: "Friday Night", multiplier: 1.2, regions: ["all"] });
+  }
+
+  // Summer break (June 1 - August 31)
+  if (month >= 5 && month <= 7) {
+    events.push({ name: "Summer Break", multiplier: 1.25, regions: ["all"] });
+  }
+
+  // Fixed-date holidays
+  const holidays: Array<{ month: number; date: number; name: string; multiplier: number }> = [
+    { month: 0, date: 1,  name: "New Year's Day", multiplier: 1.4 },
+    { month: 1, date: 14, name: "Valentine's Day", multiplier: 1.15 },
+    { month: 2, date: 17, name: "St. Patrick's Day", multiplier: 1.1 },
+    { month: 3, date: 1,  name: "April Fools'", multiplier: 1.1 },
+    { month: 6, date: 4,  name: "Independence Day (US)", multiplier: 1.35 },
+    { month: 9, date: 31, name: "Halloween", multiplier: 1.3 },
+    { month: 10, date: 11, name: "Singles' Day (CN)", multiplier: 1.25 },
+    { month: 11, date: 25, name: "Christmas Day", multiplier: 1.5 },
+    { month: 11, date: 31, name: "New Year's Eve", multiplier: 1.4 },
+  ];
+
+  for (const h of holidays) {
+    if (month === h.month && date === h.date) {
+      events.push({ name: h.name, multiplier: h.multiplier, regions: ["all"] });
+    }
+  }
+
+  // Thanksgiving (US) — 4th Thursday of November
+  if (month === 10) {
+    const firstThursday = 1 + ((4 - new Date(now.getUTCFullYear(), 10, 1).getDay()) % 7);
+    if (date >= firstThursday && date <= firstThursday + 3) {
+      events.push({ name: "Thanksgiving (US)", multiplier: 1.35, regions: ["all"] });
+    }
+  }
+
+  // Spring Break (mid-March)
+  if (month === 2 && date >= 10 && date <= 24) {
+    events.push({ name: "Spring Break", multiplier: 1.2, regions: ["all"] });
+  }
+
+  // Winter Break (Dec 20 - Jan 5)
+  if ((month === 11 && date >= 20) || (month === 0 && date <= 5)) {
+    events.push({ name: "Winter Break", multiplier: 1.35, regions: ["all"] });
+  }
+
+  // Black Friday/Cyber Monday week
+  if (month === 10 && date >= 24 && date <= 30) {
+    events.push({ name: "Black Friday Week", multiplier: 1.2, regions: ["all"] });
+  }
+
+  return events;
+}
+
+function getEventMultiplier(events: GameEvent[]): number {
+  if (events.length === 0) return 1.0;
+  // Stack multipliers but cap at 2.0x
+  let total = 1.0;
+  for (const e of events) {
+    total *= e.multiplier;
+  }
+  return Math.min(2.0, total);
+}
+
+function modelPlayerCount(serverId: number, region: string): { count: number; events: GameEvent[] } {
   const now = new Date();
   const utcHour = now.getUTCHours();
   const regionConfig = REGION_PEAK_HOURS[region] ?? REGION_PEAK_HOURS.north_america;
@@ -88,10 +169,9 @@ function modelPlayerCount(serverId: number, region: string): number {
   const isPeak = isPeakHour(localHour, regionConfig.peak);
   const basePlayers = getBasePlayersForRegion(region);
 
-  // Weekend boost (Friday-Sunday = more players)
-  const dayOfWeek = now.getUTCDay();
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-  const weekendMultiplier = isWeekend ? 1.3 : 1.0;
+  // Get active events
+  const events = getActiveEvents(now);
+  const eventMultiplier = getEventMultiplier(events);
 
   // Peak hour multiplier
   const peakMultiplier = isPeak ? 1.5 : 0.6;
@@ -104,12 +184,15 @@ function modelPlayerCount(serverId: number, region: string): number {
   const serverPopularity = (serverId % 7) / 10 + 0.7; // 0.7 to 1.3
 
   const count = Math.round(
-    basePlayers * peakMultiplier * weekendMultiplier * nightMultiplier * serverPopularity
+    basePlayers * peakMultiplier * eventMultiplier * nightMultiplier * serverPopularity
   );
 
   // Add small randomness for realism (±5%)
   const noise = 1 + (Math.random() - 0.5) * 0.1;
-  return Math.max(10, Math.round(count * noise));
+  return {
+    count: Math.max(10, Math.round(count * noise)),
+    events,
+  };
 }
 
 // ─── Ping Measurement ─────────────────────────────────────────
@@ -166,13 +249,16 @@ export const monitoringRouter = createRouter({
       .orderBy(desc(serverMonitoring.timestamp))
       .limit(100);
 
+    // Get active events (same for all servers)
+    const activeEvents = getActiveEvents(now);
+
     // Build snapshot from recent data + real-time model
     const snapshot = MONITORED_SERVERS.map((server) => {
       // Find the most recent entry for this server
       const recent = recentEntries.find((e) => e.serverId === server.id);
 
       // Calculate current player count using the model
-      const playerCount = modelPlayerCount(server.id, server.region);
+      const { count: playerCount, events } = modelPlayerCount(server.id, server.region);
 
       // Calculate load based on player count vs capacity
       const loadPercent = calculateLoad(playerCount, server.region);
@@ -195,10 +281,15 @@ export const monitoringRouter = createRouter({
           now.getUTCHours(),
           REGION_PEAK_HOURS[server.region]?.offset ?? 0
         ),
+        events,
       };
     });
 
-    return { servers: snapshot, timestamp: now.toISOString() };
+    return {
+      servers: snapshot,
+      timestamp: now.toISOString(),
+      activeEvents: activeEvents.map((e) => ({ name: e.name, multiplier: e.multiplier })),
+    };
   }),
 
   // Record a real ping measurement for a specific server
@@ -209,7 +300,7 @@ export const monitoringRouter = createRouter({
       if (!server) throw new Error("Server not found");
 
       const latency = await measurePing(server.target);
-      const playerCount = modelPlayerCount(server.id, server.region);
+      const { count: playerCount } = modelPlayerCount(server.id, server.region);
       const loadPercent = calculateLoad(playerCount, server.region);
 
       const db = getDb();

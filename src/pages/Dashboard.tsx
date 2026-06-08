@@ -382,6 +382,12 @@ interface MonServer {
   serverId: number; name: string; city: string; countryCode: string;
   region: string; latency: number | null; playerCount: number;
   loadPercent: number; isPeakHour: boolean; localHour: number;
+  events: Array<{ name: string; multiplier: number }>;
+}
+
+interface MonEvent {
+  name: string;
+  multiplier: number;
 }
 
 function HeatMapTab({
@@ -395,7 +401,7 @@ function HeatMapTab({
 }: {
   servers: VPNServer[];
   heatLoads: Record<number, number>;
-  monitoringData: { servers: MonServer[]; timestamp: string } | undefined;
+  monitoringData: { servers: MonServer[]; timestamp: string; activeEvents: MonEvent[] } | undefined;
   canConnect: boolean;
   goToLogin: () => void;
   closestServer: ServerLocation | null;
@@ -416,8 +422,25 @@ function HeatMapTab({
     : null;
   const closestPlayers = closestVPNServer ? (playerCounts[closestVPNServer.id] ?? 0) : 0;
 
+  // Active events from monitoring
+  const activeEvents = monitoringData?.activeEvents ?? [];
+
   return (
     <div>
+      {/* Active Events Banner */}
+      {activeEvents.length > 0 && (
+        <div className="bg-[rgba(232,93,78,0.08)] border border-[rgba(232,93,78,0.2)] rounded-xl p-3 mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-[#E85D4E] uppercase tracking-wider">Active Events:</span>
+            {activeEvents.map((event, i) => (
+              <span key={i} className="text-xs text-[#D1D5DB] bg-[rgba(255,255,255,0.05)] px-2 py-1 rounded-full">
+                {event.name} <span className="text-[#E85D4E]">+{Math.round((event.multiplier - 1) * 100)}%</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Closest Server Recommendation */}
       {closestVPNServer && (
         <div className="bg-[rgba(74,222,128,0.08)] border border-[rgba(74,222,128,0.2)] rounded-xl p-4 mb-4">
