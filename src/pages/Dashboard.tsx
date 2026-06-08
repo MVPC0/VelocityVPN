@@ -383,18 +383,63 @@ function HeatMapTab({
   heatHistory,
   canConnect,
   goToLogin,
+  closestServer,
+  distance,
 }: {
   servers: VPNServer[];
   heatLoads: Record<number, number>;
   heatHistory: Array<Record<number, number>>;
   canConnect: boolean;
   goToLogin: () => void;
+  closestServer: ServerLocation | null;
+  distance: number | null;
 }) {
   const [selectedHeatServer, setSelectedHeatServer] = useState<number | null>(null);
   const sortedByLoad = [...servers].sort((a, b) => (heatLoads[b.id] ?? 0) - (heatLoads[a.id] ?? 0));
 
+  // Find the closest server in our VPNServer list
+  const closestVPNServer = closestServer
+    ? servers.find((s) => s.id === closestServer.id) ?? null
+    : null;
+
   return (
     <div>
+      {/* Closest Server Recommendation */}
+      {closestVPNServer && (
+        <div className="bg-[rgba(74,222,128,0.08)] border border-[rgba(74,222,128,0.2)] rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[rgba(74,222,128,0.15)] flex items-center justify-center">
+                <Navigation size={18} className="text-[#4ADE80]" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Recommended Server — Closest to You
+                </p>
+                <p className="text-xs text-[#9CA3AF]">
+                  {FLAG_MAP[closestVPNServer.countryCode] ?? "🌐"} {closestVPNServer.city} ({closestVPNServer.name}) — {distance}mi away — Load: {heatLoads[closestVPNServer.id] ?? closestVPNServer.load}%
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedHeatServer(closestVPNServer.id)}
+              className="px-4 py-2 bg-[#4ADE80] text-[#050507] rounded-lg text-xs font-bold hover:bg-[#3ECF71] transition-all cursor-pointer border-0"
+            >
+              View on Map
+            </button>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-[#111118] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#4ADE80] transition-all duration-500"
+                style={{ width: `${Math.min(100, ((distance ?? 999) / 100) * 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-[#4ADE80] font-medium">{distance}mi</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -470,12 +515,28 @@ function HeatMapTab({
             const load = heatLoads[server.id] ?? server.load;
             const heat = getHeatLevel(load);
             const isSelected = selectedHeatServer === server.id;
+            const isClosest = closestServer?.id === server.id;
             return (
               <g
                 key={server.id}
                 onClick={() => setSelectedHeatServer(isSelected ? null : server.id)}
                 className="cursor-pointer"
               >
+                {/* Closest server indicator ring */}
+                {isClosest && (
+                  <circle
+                    cx={coords.x}
+                    cy={coords.y}
+                    r={5}
+                    fill="none"
+                    stroke="#4ADE80"
+                    strokeWidth={0.5}
+                    opacity={0.6}
+                  >
+                    <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite" />
+                  </circle>
+                )}
                 {/* Outer ring for selected */}
                 {isSelected && (
                   <circle
@@ -556,6 +617,7 @@ function HeatMapTab({
           const load = heatLoads[server.id] ?? server.load;
           const heat = getHeatLevel(load);
           const isSelected = selectedHeatServer === server.id;
+          const isClosestSrv = closestServer?.id === server.id;
           const history = heatHistory.map((h) => h[server.id] ?? load);
           const sparklinePoints = history.slice(-20).map((v, i) => `${(i / 19) * 100},${100 - v}`).join(" ");
 
@@ -564,9 +626,17 @@ function HeatMapTab({
               key={server.id}
               onClick={() => setSelectedHeatServer(isSelected ? null : server.id)}
               className={`relative bg-[#0A0A0F] border rounded-xl p-4 transition-all cursor-pointer ${
-                isSelected ? "border-[rgba(255,255,255,0.2)]" : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.12)]"
+                isSelected ? "border-[rgba(255,255,255,0.2)]" : isClosestSrv ? "border-[rgba(74,222,128,0.3)]" : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.12)]"
               }`}
             >
+              {/* Closest badge */}
+              {isClosestSrv && (
+                <div className="absolute -top-2 left-3 z-20">
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-[#050507] bg-[#4ADE80] px-2 py-0.5 rounded-full">
+                    <Navigation size={8} /> CLOSEST TO YOU
+                  </span>
+                </div>
+              )}
               {/* Sparkline background */}
               {sparklinePoints && (
                 <svg className="absolute bottom-0 left-0 right-0 h-12 opacity-20" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -1033,6 +1103,8 @@ const Dashboard: React.FC = () => {
             heatHistory={heatHistory}
             canConnect={canConnect}
             goToLogin={goToLogin}
+            closestServer={closestServer}
+            distance={distance}
           />
         )}
 

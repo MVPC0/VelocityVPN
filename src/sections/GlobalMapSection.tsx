@@ -255,10 +255,10 @@ const GlobalMapSection: React.FC = () => {
   }, [isInView, draw]);
 
   const stats = [
-    { value: 90, suffix: '+', label: 'Server Cities', color: 'text-[#9B6DFF]' },
+    { value: 34, suffix: '', label: 'Global Locations', color: 'text-[#9B6DFF]' },
     { value: 6, suffix: '', label: 'Continents', color: 'text-[#A3B8D4]' },
-    { value: 10, suffix: 'Gbps', label: 'Network Backbone', color: 'text-[#E85D4E]' },
-    { value: 0, suffix: 'ms', label: 'Added Latency', color: 'text-[#4ADE80]' },
+    { value: 19, suffix: '', label: 'Game Titles', color: 'text-[#E85D4E]' },
+    { value: 3, suffix: '', label: 'Day Free Trial', color: 'text-[#4ADE80]' },
   ];
 
   return (
