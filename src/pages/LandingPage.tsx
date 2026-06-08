@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
-import HeroSection from "@/sections/HeroSection";
-import SpeedStepsSection from "@/sections/SpeedStepsSection";
-import GlobalMapSection from "@/sections/GlobalMapSection";
-import PingTestSection from "@/sections/PingTestSection";
-import GamesSection from "@/sections/GamesSection";
-import FeaturesRacingSection from "@/sections/FeaturesRacingSection";
-import TestimonialsSection from "@/sections/TestimonialsSection";
 import CTASection from "@/sections/CTASection";
+
+// Lazy load heavy sections for faster initial load
+const HeroSection = lazy(() => import("@/sections/HeroSection"));
+const SpeedStepsSection = lazy(() => import("@/sections/SpeedStepsSection"));
+const GlobalMapSection = lazy(() => import("@/sections/GlobalMapSection"));
+const PingTestSection = lazy(() => import("@/sections/PingTestSection"));
+const GamesSection = lazy(() => import("@/sections/GamesSection"));
+const FeaturesRacingSection = lazy(() => import("@/sections/FeaturesRacingSection"));
+const TestimonialsSection = lazy(() => import("@/sections/TestimonialsSection"));
 
 const PageLoader: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
@@ -44,6 +46,12 @@ const PageLoader: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   );
 };
 
+const SectionFallback = () => (
+  <div className="w-full py-24 bg-[#0A0A0F] flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-[#E85D4E] border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 const LandingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
@@ -53,13 +61,27 @@ const LandingPage: React.FC = () => {
       <div className={`transition-opacity duration-500 ${loading ? "opacity-0" : "opacity-100"}`}>
         <Navigation />
         <main>
-          <HeroSection />
-          <SpeedStepsSection />
-          <GlobalMapSection />
-          <PingTestSection />
-          <GamesSection />
-          <FeaturesRacingSection />
-          <TestimonialsSection />
+          <Suspense fallback={<SectionFallback />}>
+            <HeroSection />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <SpeedStepsSection />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <GlobalMapSection />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <PingTestSection />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <GamesSection />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <FeaturesRacingSection />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <TestimonialsSection />
+          </Suspense>
           <CTASection />
         </main>
         <Footer />
