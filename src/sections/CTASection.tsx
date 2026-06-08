@@ -28,12 +28,10 @@ export default function CTASection() {
         <div className="mt-10">
           <a
             href="#/pricing"
-            onClick={() => { window.location.hash = '/pricing'; }}
             className="inline-flex items-center justify-center font-medium transition-all duration-300
               px-12 py-5 text-sm uppercase tracking-[0.04em]
               bg-[#E85D4E] text-white rounded-lg hover:bg-[#D44A3C] hover:scale-[1.02] active:scale-[0.98]
               no-underline cursor-pointer"
-            style={{ display: 'inline-flex' }}
           >
             Get VelocityVPN Now
           </a>

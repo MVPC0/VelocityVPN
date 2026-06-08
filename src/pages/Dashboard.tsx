@@ -45,6 +45,8 @@ const SERVER_LOCATIONS: ServerLocation[] = [
 const FLAG_MAP: Record<string, string> = {
   US: "🇺🇸", GB: "🇬🇧", DE: "🇩🇪", JP: "🇯🇵",
   SG: "🇸🇬", AU: "🇦🇺", BR: "🇧🇷", AE: "🇦🇪", SE: "🇸🇪",
+  CA: "🇨🇦", NL: "🇳🇱", FR: "🇫🇷", PL: "🇵🇱",
+  IN: "🇮🇳", HK: "🇭🇰", KR: "🇰🇷", ES: "🇪🇸",
 };
 
 const INITIAL_SERVERS: VPNServer[] = [
@@ -58,6 +60,15 @@ const INITIAL_SERVERS: VPNServer[] = [
   { id: 8, name: "SA-East-1", city: "Sao Paulo", country: "Brazil", countryCode: "BR", region: "south_america", hostname: "sao-br.velocityvpn.com", load: 28, ping: 68, jitter: 7, protocol: "wireguard" },
   { id: 9, name: "ME-South-1", city: "Dubai", country: "UAE", countryCode: "AE", region: "middle_east", hostname: "dxb-ae.velocityvpn.com", load: 41, ping: 52, jitter: 5, protocol: "wireguard" },
   { id: 10, name: "EU-North-1", city: "Stockholm", country: "Sweden", countryCode: "SE", region: "europe", hostname: "sto-se.velocityvpn.com", load: 12, ping: 25, jitter: 2, protocol: "wireguard" },
+  { id: 11, name: "US-Central-1", city: "Chicago", country: "United States", countryCode: "US", region: "north_america", hostname: "chi-us.velocityvpn.com", load: 33, ping: 28, jitter: 3, protocol: "wireguard" },
+  { id: 12, name: "NA-North-1", city: "Toronto", country: "Canada", countryCode: "CA", region: "north_america", hostname: "tor-ca.velocityvpn.com", load: 20, ping: 24, jitter: 2, protocol: "wireguard" },
+  { id: 13, name: "EU-West-2", city: "Amsterdam", country: "Netherlands", countryCode: "NL", region: "europe", hostname: "ams-nl.velocityvpn.com", load: 27, ping: 21, jitter: 2, protocol: "wireguard" },
+  { id: 14, name: "EU-South-1", city: "Paris", country: "France", countryCode: "FR", region: "europe", hostname: "par-fr.velocityvpn.com", load: 35, ping: 23, jitter: 3, protocol: "wireguard" },
+  { id: 15, name: "EU-East-1", city: "Warsaw", country: "Poland", countryCode: "PL", region: "europe", hostname: "waw-pl.velocityvpn.com", load: 18, ping: 26, jitter: 2, protocol: "wireguard" },
+  { id: 16, name: "AS-South-1", city: "Mumbai", country: "India", countryCode: "IN", region: "asia_pacific", hostname: "bom-in.velocityvpn.com", load: 44, ping: 55, jitter: 6, protocol: "wireguard" },
+  { id: 17, name: "AS-East-1", city: "Hong Kong", country: "Hong Kong", countryCode: "HK", region: "asia_pacific", hostname: "hkg-hk.velocityvpn.com", load: 37, ping: 45, jitter: 4, protocol: "wireguard" },
+  { id: 18, name: "AS-Northeast-2", city: "Seoul", country: "South Korea", countryCode: "KR", region: "asia_pacific", hostname: "sel-kr.velocityvpn.com", load: 48, ping: 40, jitter: 5, protocol: "wireguard" },
+  { id: 19, name: "EU-Southwest-1", city: "Madrid", country: "Spain", countryCode: "ES", region: "europe", hostname: "mad-es.velocityvpn.com", load: 22, ping: 30, jitter: 3, protocol: "wireguard" },
 ];
 
 // Real ping targets — well-known regional endpoints
@@ -72,6 +83,15 @@ const PING_TARGETS: Record<number, string> = {
   8: "https://www.gov.br",
   9: "https://www.google.ae",
   10: "https://www.regeringen.se",
+  11: "https://www.chicago.gov",
+  12: "https://www.canada.ca",
+  13: "https://www.rijksoverheid.nl",
+  14: "https://www.gouvernement.fr",
+  15: "https://www.gov.pl",
+  16: "https://www.india.gov.in",
+  17: "https://www.gov.hk",
+  18: "https://www.go.kr",
+  19: "https://www.lamoncloa.gob.es",
 };
 
 // Real ping using image load timing — works cross-origin without CORS

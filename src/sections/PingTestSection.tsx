@@ -26,6 +26,17 @@ const SERVER_LOCATIONS: ServerLocation[] = [
   { id: 6, city: 'Sydney', countryCode: 'AU', lat: -33.8688, lng: 151.2093 },
   { id: 7, city: 'Sao Paulo', countryCode: 'BR', lat: -23.5505, lng: -46.6333 },
   { id: 8, city: 'Dubai', countryCode: 'AE', lat: 25.2048, lng: 55.2708 },
+  { id: 9, city: 'Stockholm', countryCode: 'SE', lat: 59.3293, lng: 18.0686 },
+  { id: 10, city: 'Chicago', countryCode: 'US', lat: 41.8781, lng: -87.6298 },
+  { id: 11, city: 'Toronto', countryCode: 'CA', lat: 43.6532, lng: -79.3832 },
+  { id: 12, city: 'Amsterdam', countryCode: 'NL', lat: 52.3676, lng: 4.9041 },
+  { id: 13, city: 'Paris', countryCode: 'FR', lat: 48.8566, lng: 2.3522 },
+  { id: 14, city: 'Warsaw', countryCode: 'PL', lat: 52.2297, lng: 21.0122 },
+  { id: 15, city: 'Mumbai', countryCode: 'IN', lat: 19.0760, lng: 72.8777 },
+  { id: 16, city: 'Hong Kong', countryCode: 'HK', lat: 22.3193, lng: 114.1694 },
+  { id: 17, city: 'Seoul', countryCode: 'KR', lat: 37.5665, lng: 126.9780 },
+  { id: 18, city: 'Madrid', countryCode: 'ES', lat: 40.4168, lng: -3.7038 },
+  { id: 19, city: 'Los Angeles', countryCode: 'US', lat: 34.0522, lng: -118.2437 },
 ];
 
 const servers: Server[] = [
@@ -37,6 +48,17 @@ const servers: Server[] = [
   { id: 6, name: 'Sydney', flag: '🇦🇺', x: 87, y: 74, endpoint: 'https://www.gov.au/favicon.ico' },
   { id: 7, name: 'Sao Paulo', flag: '🇧🇷', x: 30, y: 74, endpoint: 'https://www.gov.br/favicon.ico' },
   { id: 8, name: 'Dubai', flag: '🇦🇪', x: 60, y: 47, endpoint: 'https://www.google.ae/favicon.ico' },
+  { id: 9, name: 'Stockholm', flag: '🇸🇪', x: 55, y: 22, endpoint: 'https://www.regeringen.se/favicon.ico' },
+  { id: 10, name: 'Chicago', flag: '🇺🇸', x: 18, y: 36, endpoint: 'https://www.chicago.gov/favicon.ico' },
+  { id: 11, name: 'Toronto', flag: '🇨🇦', x: 24, y: 34, endpoint: 'https://www.canada.ca/favicon.ico' },
+  { id: 12, name: 'Amsterdam', flag: '🇳🇱', x: 48, y: 30, endpoint: 'https://www.rijksoverheid.nl/favicon.ico' },
+  { id: 13, name: 'Paris', flag: '🇫🇷', x: 46, y: 32, endpoint: 'https://www.gouvernement.fr/favicon.ico' },
+  { id: 14, name: 'Warsaw', flag: '🇵🇱', x: 53, y: 28, endpoint: 'https://www.gov.pl/favicon.ico' },
+  { id: 15, name: 'Mumbai', flag: '🇮🇳', x: 66, y: 52, endpoint: 'https://www.india.gov.in/favicon.ico' },
+  { id: 16, name: 'Hong Kong', flag: '🇭🇰', x: 79, y: 48, endpoint: 'https://www.gov.hk/favicon.ico' },
+  { id: 17, name: 'Seoul', flag: '🇰🇷', x: 82, y: 36, endpoint: 'https://www.go.kr/favicon.ico' },
+  { id: 18, name: 'Madrid', flag: '🇪🇸', x: 44, y: 36, endpoint: 'https://www.lamoncloa.gob.es/favicon.ico' },
+  { id: 19, name: 'Los Angeles', flag: '🇺🇸', x: 14, y: 40, endpoint: 'https://www.lacity.gov/favicon.ico' },
 ];
 
 function getPingColor(ping: number): string {
