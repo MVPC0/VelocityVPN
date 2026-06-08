@@ -123,6 +123,22 @@ export const serverMonitoring = mysqlTable("server_monitoring", {
 
 export type ServerMonitoring = typeof serverMonitoring.$inferSelect;
 
+// ─── Game Events (live boosts) ───────────────────────────────
+
+export const gameEvents = mysqlTable("game_events", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  gameName: varchar("game_name", { length: 100 }).notNull(),
+  eventName: varchar("event_name", { length: 200 }).notNull(),
+  description: text("description"),
+  multiplier: int("multiplier").default(100).notNull(), // Percentage (100 = 1.0x, 150 = 1.5x)
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type GameEvent = typeof gameEvents.$inferSelect;
+
 // ─── Ping results ─────────────────────────────────────────────
 
 export type PingResult = typeof pingResults.$inferSelect;

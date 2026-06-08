@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { serverMonitoring } from "@db/schema";
-import { desc, sql } from "drizzle-orm";
+import { serverMonitoring, gameEvents } from "@db/schema";
+import { desc, sql, and, lte, gte, eq } from "drizzle-orm";
 
 // ─── 34 Servers with real ping targets ────────────────────────
 
@@ -252,13 +252,35 @@ export const monitoringRouter = createRouter({
     // Get active events (same for all servers)
     const activeEvents = getActiveEvents(now);
 
+    // Get active game events
+    const activeGameEvents = await db
+      .select()
+      .from(gameEvents)
+      .where(
+        and(
+          eq(gameEvents.isActive, true),
+          lte(gameEvents.startDate, now),
+          gte(gameEvents.endDate, now)
+        )
+      );
+
+    // Calculate game event multiplier
+    let gameEventMultiplier = 1.0;
+    for (const ge of activeGameEvents) {
+      gameEventMultiplier *= (ge.multiplier / 100);
+    }
+    gameEventMultiplier = Math.min(2.5, gameEventMultiplier);
+
     // Build snapshot from recent data + real-time model
     const snapshot = MONITORED_SERVERS.map((server) => {
       // Find the most recent entry for this server
       const recent = recentEntries.find((e) => e.serverId === server.id);
 
       // Calculate current player count using the model
-      const { count: playerCount, events } = modelPlayerCount(server.id, server.region);
+      const { count: baseCount, events } = modelPlayerCount(server.id, server.region);
+
+      // Apply game event multiplier
+      const playerCount = Math.round(baseCount * gameEventMultiplier);
 
       // Calculate load based on player count vs capacity
       const loadPercent = calculateLoad(playerCount, server.region);
@@ -289,6 +311,14 @@ export const monitoringRouter = createRouter({
       servers: snapshot,
       timestamp: now.toISOString(),
       activeEvents: activeEvents.map((e) => ({ name: e.name, multiplier: e.multiplier })),
+      gameEvents: activeGameEvents.map((ge) => ({
+        id: ge.id,
+        gameName: ge.gameName,
+        eventName: ge.eventName,
+        description: ge.description,
+        multiplier: ge.multiplier,
+      })),
+      gameEventMultiplier,
     };
   }),
 

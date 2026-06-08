@@ -390,6 +390,14 @@ interface MonEvent {
   multiplier: number;
 }
 
+interface GameEventData {
+  id: number;
+  gameName: string;
+  eventName: string;
+  description: string;
+  multiplier: number;
+}
+
 function HeatMapTab({
   servers,
   heatLoads,
@@ -401,7 +409,13 @@ function HeatMapTab({
 }: {
   servers: VPNServer[];
   heatLoads: Record<number, number>;
-  monitoringData: { servers: MonServer[]; timestamp: string; activeEvents: MonEvent[] } | undefined;
+  monitoringData: {
+    servers: MonServer[];
+    timestamp: string;
+    activeEvents: MonEvent[];
+    gameEvents: GameEventData[];
+    gameEventMultiplier: number;
+  } | undefined;
   canConnect: boolean;
   goToLogin: () => void;
   closestServer: ServerLocation | null;
@@ -424,14 +438,44 @@ function HeatMapTab({
 
   // Active events from monitoring
   const activeEvents = monitoringData?.activeEvents ?? [];
+  const gameEvents = monitoringData?.gameEvents ?? [];
+  const gameEventMultiplier = monitoringData?.gameEventMultiplier ?? 1.0;
 
   return (
     <div>
-      {/* Active Events Banner */}
+      {/* Live Game Events Banner */}
+      {gameEvents.length > 0 && (
+        <div className="bg-[rgba(155,109,255,0.1)] border border-[rgba(155,109,255,0.25)] rounded-xl p-3 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-[#9B6DFF] uppercase tracking-wider flex items-center gap-1.5">
+              <Flame size={12} /> Live Game Boosts Active
+            </span>
+            <span className="text-xs text-[#9B6DFF] font-bold">
+              +{Math.round((gameEventMultiplier - 1) * 100)}% players
+            </span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {gameEvents.map((ge) => (
+              <div key={ge.id} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#E85D4E] animate-pulse" />
+                  <span className="text-xs text-[#D1D5DB]">{ge.gameName}</span>
+                  <span className="text-xs text-white font-medium">{ge.eventName}</span>
+                </div>
+                <span className="text-[10px] text-[#9B6DFF] bg-[rgba(155,109,255,0.1)] px-2 py-0.5 rounded-full">
+                  +{Math.round((ge.multiplier / 100 - 1) * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Events Banner */}
       {activeEvents.length > 0 && (
         <div className="bg-[rgba(232,93,78,0.08)] border border-[rgba(232,93,78,0.2)] rounded-xl p-3 mb-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-[#E85D4E] uppercase tracking-wider">Active Events:</span>
+            <span className="text-xs font-bold text-[#E85D4E] uppercase tracking-wider">Events:</span>
             {activeEvents.map((event, i) => (
               <span key={i} className="text-xs text-[#D1D5DB] bg-[rgba(255,255,255,0.05)] px-2 py-1 rounded-full">
                 {event.name} <span className="text-[#E85D4E]">+{Math.round((event.multiplier - 1) * 100)}%</span>
