@@ -3,7 +3,8 @@ import { useNavigate } from "react-router";
 import {
   Shield, Zap, Power, Clock, ArrowDown, ArrowUp,
   Activity, Server, RefreshCw, ChevronLeft, Download,
-  Navigation, Lock, Sparkles, Crown, LogIn
+  Navigation, Lock, Sparkles, Crown, LogIn,
+  Flame, Globe, CircleDot, Thermometer, Loader2
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useClosestServer } from "@/hooks/useGeoLocation";
@@ -207,6 +208,349 @@ function LockedOverlay({
   );
 }
 
+// ─── Server Coordinates for Heat Map ──────────────────────────
+
+// Approximate SVG coordinates (0-100 scale) for each server city
+const SERVER_COORDS: Record<number, { x: number; y: number }> = {
+  1: { x: 26, y: 36 },   // New York
+  2: { x: 16, y: 38 },   // Los Angeles
+  3: { x: 47, y: 28 },   // London
+  4: { x: 51, y: 30 },   // Frankfurt
+  5: { x: 84, y: 36 },   // Tokyo
+  6: { x: 75, y: 55 },   // Singapore
+  7: { x: 88, y: 72 },   // Sydney
+  8: { x: 31, y: 70 },   // Sao Paulo
+  9: { x: 60, y: 44 },   // Dubai
+  10: { x: 54, y: 22 },  // Stockholm
+  11: { x: 23, y: 34 },  // Chicago
+  12: { x: 25, y: 32 },  // Toronto
+  13: { x: 49, y: 28 },  // Amsterdam
+  14: { x: 48, y: 31 },  // Paris
+  15: { x: 53, y: 29 },  // Warsaw
+  16: { x: 66, y: 48 },  // Mumbai
+  17: { x: 78, y: 46 },  // Hong Kong
+  18: { x: 82, y: 35 },  // Seoul
+  19: { x: 45, y: 35 },  // Madrid
+};
+
+// Load level thresholds and labels
+function getHeatLevel(load: number): {
+  label: string;
+  color: string;
+  bg: string;
+  glow: string;
+  description: string;
+  icon: string;
+} {
+  if (load < 20)
+    return {
+      label: "Botty",
+      color: "#4ADE80",
+      bg: "rgba(74,222,128,0.15)",
+      glow: "rgba(74,222,128,0.4)",
+      description: "Low traffic — great for casual play",
+      icon: "🤖",
+    };
+  if (load < 40)
+    return {
+      label: "Light",
+      color: "#22D3EE",
+      bg: "rgba(34,211,238,0.15)",
+      glow: "rgba(34,211,238,0.4)",
+      description: "Moderate traffic — smooth connection",
+      icon: "🍃",
+    };
+  if (load < 60)
+    return {
+      label: "Average",
+      color: "#FBBF24",
+      bg: "rgba(251,191,36,0.15)",
+      glow: "rgba(251,191,36,0.4)",
+      description: "Normal traffic — expect some competition",
+      icon: "⚖️",
+    };
+  if (load < 80)
+    return {
+      label: "Busy",
+      color: "#F97316",
+      bg: "rgba(249,115,22,0.15)",
+      glow: "rgba(249,115,22,0.4)",
+      description: "Heavy traffic — competitive lobbies",
+      icon: "🔥",
+    };
+  return {
+    label: "Sweaty",
+    color: "#EF4444",
+    bg: "rgba(239,68,68,0.15)",
+    glow: "rgba(239,68,68,0.4)",
+    description: "Max capacity — expect sweats",
+    icon: "💀",
+  };
+}
+
+// ─── Heat Map Tab Component ───────────────────────────────────
+
+function HeatMapTab({
+  servers,
+  heatLoads,
+  heatHistory,
+  canConnect,
+  goToLogin,
+}: {
+  servers: VPNServer[];
+  heatLoads: Record<number, number>;
+  heatHistory: Array<Record<number, number>>;
+  canConnect: boolean;
+  goToLogin: () => void;
+}) {
+  const [selectedHeatServer, setSelectedHeatServer] = useState<number | null>(null);
+  const sortedByLoad = [...servers].sort((a, b) => (heatLoads[b.id] ?? 0) - (heatLoads[a.id] ?? 0));
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-['Archivo'] text-lg tracking-tight flex items-center gap-2">
+            <Flame size={18} className="text-[#E85D4E]" />
+            Live Server Heat Map
+          </h3>
+          <p className="text-xs text-[#6B7280] mt-0.5">
+            Real-time server load updates every 2 seconds. Select a server to see details.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-[#4ADE80]">
+          <CircleDot size={12} className="animate-pulse" />
+          Live
+        </div>
+      </div>
+
+      {/* World Map */}
+      <div className="relative bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl overflow-hidden mb-5">
+        <svg viewBox="0 0 100 60" className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+          {/* Dark background */}
+          <rect width="100" height="60" fill="#0A0A0F" />
+
+          {/* Grid lines */}
+          {Array.from({ length: 11 }, (_, i) => (
+            <g key={i}>
+              <line x1={0} y1={i * 6} x2={100} y2={i * 6} stroke="rgba(255,255,255,0.03)" strokeWidth={0.15} />
+              <line x1={i * 10} y1={0} x2={i * 10} y2={60} stroke="rgba(255,255,255,0.03)" strokeWidth={0.15} />
+            </g>
+          ))}
+
+          {/* Simplified continent outlines */}
+          {/* North America */}
+          <path d="M8,18 L12,14 L18,12 L25,14 L28,18 L30,24 L28,32 L24,36 L20,38 L14,36 L10,32 L8,26 Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" strokeWidth={0.2} />
+          {/* South America */}
+          <path d="M22,42 L28,40 L32,44 L34,52 L32,58 L28,56 L24,52 L22,46 Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" strokeWidth={0.2} />
+          {/* Europe */}
+          <path d="M44,20 L48,16 L54,16 L58,20 L56,28 L52,32 L48,32 L44,28 Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" strokeWidth={0.2} />
+          {/* Africa */}
+          <path d="M44,36 L50,34 L56,38 L58,46 L54,52 L48,54 L44,48 Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" strokeWidth={0.2} />
+          {/* Asia */}
+          <path d="M58,16 L66,12 L78,14 L86,20 L88,28 L84,36 L78,40 L70,42 L62,38 L58,30 Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" strokeWidth={0.2} />
+          {/* Australia */}
+          <path d="M82,50 L88,48 L92,52 L90,58 L84,58 Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" strokeWidth={0.2} />
+
+          {/* Heat gradient overlay based on server positions */}
+          {servers.map((server) => {
+            const coords = SERVER_COORDS[server.id];
+            if (!coords) return null;
+            const load = heatLoads[server.id] ?? server.load;
+            const heat = getHeatLevel(load);
+            const radius = 3 + (load / 100) * 4;
+            return (
+              <g key={`glow-${server.id}`}>
+                <circle
+                  cx={coords.x}
+                  cy={coords.y}
+                  r={radius * 2}
+                  fill={heat.glow}
+                  opacity={0.3}
+                >
+                  <animate attributeName="r" values={`${radius};${radius * 1.5};${radius}`} dur={`${2 + Math.random()}s`} repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.3;0.15;0.3" dur={`${2 + Math.random()}s`} repeatCount="indefinite" />
+                </circle>
+              </g>
+            );
+          })}
+
+          {/* Server dots */}
+          {servers.map((server) => {
+            const coords = SERVER_COORDS[server.id];
+            if (!coords) return null;
+            const load = heatLoads[server.id] ?? server.load;
+            const heat = getHeatLevel(load);
+            const isSelected = selectedHeatServer === server.id;
+            return (
+              <g
+                key={server.id}
+                onClick={() => setSelectedHeatServer(isSelected ? null : server.id)}
+                className="cursor-pointer"
+              >
+                {/* Outer ring for selected */}
+                {isSelected && (
+                  <circle
+                    cx={coords.x}
+                    cy={coords.y}
+                    r={4}
+                    fill="none"
+                    stroke={heat.color}
+                    strokeWidth={0.4}
+                    opacity={0.8}
+                  >
+                    <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite" />
+                  </circle>
+                )}
+                {/* Main dot */}
+                <circle
+                  cx={coords.x}
+                  cy={coords.y}
+                  r={isSelected ? 2.2 : 1.8}
+                  fill={heat.color}
+                  stroke="rgba(0,0,0,0.5)"
+                  strokeWidth={0.3}
+                />
+                {/* City label */}
+                <text
+                  x={coords.x}
+                  y={coords.y - 3}
+                  textAnchor="middle"
+                  fill="white"
+                  fontSize={2.2}
+                  fontFamily="JetBrains Mono, monospace"
+                  fontWeight={500}
+                >
+                  {server.city}
+                </text>
+                {/* Load label */}
+                <text
+                  x={coords.x}
+                  y={coords.y + 4.5}
+                  textAnchor="middle"
+                  fill={heat.color}
+                  fontSize={1.8}
+                  fontFamily="JetBrains Mono, monospace"
+                  fontWeight={600}
+                >
+                  {load}% {heat.label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-3 mb-5 bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl p-3">
+        <span className="text-xs text-[#6B7280] mr-1">Legend:</span>
+        {[
+          { load: 10, label: "Botty" },
+          { load: 30, label: "Light" },
+          { load: 50, label: "Average" },
+          { load: 70, label: "Busy" },
+          { load: 90, label: "Sweaty" },
+        ].map((item) => {
+          const heat = getHeatLevel(item.load);
+          return (
+            <div key={item.label} className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: heat.color }} />
+              <span className="text-xs" style={{ color: heat.color }}>{item.label}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Server Heat List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        {sortedByLoad.map((server) => {
+          const load = heatLoads[server.id] ?? server.load;
+          const heat = getHeatLevel(load);
+          const isSelected = selectedHeatServer === server.id;
+          const history = heatHistory.map((h) => h[server.id] ?? load);
+          const sparklinePoints = history.slice(-20).map((v, i) => `${(i / 19) * 100},${100 - v}`).join(" ");
+
+          return (
+            <div
+              key={server.id}
+              onClick={() => setSelectedHeatServer(isSelected ? null : server.id)}
+              className={`relative bg-[#0A0A0F] border rounded-xl p-4 transition-all cursor-pointer ${
+                isSelected ? "border-[rgba(255,255,255,0.2)]" : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.12)]"
+              }`}
+            >
+              {/* Sparkline background */}
+              {sparklinePoints && (
+                <svg className="absolute bottom-0 left-0 right-0 h-12 opacity-20" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <polyline points={sparklinePoints} fill="none" stroke={heat.color} strokeWidth={2} />
+                </svg>
+              )}
+
+              <div className="relative z-10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{FLAG_MAP[server.countryCode] ?? "\uD83C\uDF10"}</span>
+                  <div>
+                    <div className="font-medium text-sm text-white">{server.city}</div>
+                    <div className="text-xs text-[#6B7280]">{server.name}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{heat.icon}</span>
+                    <span className="font-['JetBrains_Mono'] text-lg font-bold" style={{ color: heat.color }}>
+                      {load}%
+                    </span>
+                  </div>
+                  <span
+                    className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: heat.bg, color: heat.color }}
+                  >
+                    {heat.label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Expanded detail */}
+              {isSelected && (
+                <div className="relative z-10 mt-3 pt-3 border-t border-[rgba(255,255,255,0.06)]">
+                  <p className="text-xs text-[#9CA3AF] mb-2">{heat.description}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-[#111118] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${load}%`,
+                          backgroundColor: heat.color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 mt-2 text-[10px] text-[#6B7280]">
+                    <span>Ping: {server.ping !== null ? `${server.ping}ms` : "--"}</span>
+                    <span>Jitter: ±{server.jitter ?? "--"}ms</span>
+                    <span>Protocol: {server.protocol}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {!canConnect && (
+        <div className="mt-4 bg-[rgba(155,109,255,0.05)] border border-[rgba(155,109,255,0.15)] rounded-xl p-4 text-center">
+          <p className="text-sm text-[#9CA3AF]">
+            <Flame size={14} className="inline mr-1 text-[#E85D4E]" />
+            Server heat map shows real-time load data. VPN connection available during your free trial.
+            <button onClick={goToLogin} className="ml-2 text-[#9B6DFF] hover:underline bg-transparent border-0 cursor-pointer">Start free trial</button>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────
 
 const Dashboard: React.FC = () => {
@@ -216,7 +560,13 @@ const Dashboard: React.FC = () => {
   const [servers, setServers] = useState<VPNServer[]>(INITIAL_SERVERS);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [selectedServerId, setSelectedServerId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"servers" | "status" | "history">("servers");
+  const [activeTab, setActiveTab] = useState<"servers" | "heat" | "status" | "history">("servers");
+  const [heatLoads, setHeatLoads] = useState<Record<number, number>>(() => {
+    const map: Record<number, number> = {};
+    INITIAL_SERVERS.forEach((s) => { map[s.id] = s.load; });
+    return map;
+  });
+  const [heatHistory, setHeatHistory] = useState<Array<Record<number, number>>>([]);
   const [elapsed, setElapsed] = useState(0);
   const [history, setHistory] = useState<Array<{
     server: VPNServer; duration: number; bytesSent: number;
@@ -229,6 +579,23 @@ const Dashboard: React.FC = () => {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [pingingId, setPingingId] = useState<number | null>(null);
   const [isPingingAll, setIsPingingAll] = useState(false);
+
+  // Real-time heat map load fluctuation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeatLoads((prev) => {
+        const next: Record<number, number> = {};
+        INITIAL_SERVERS.forEach((s) => {
+          const current = prev[s.id] ?? s.load;
+          const fluctuation = (Math.random() - 0.5) * 8;
+          next[s.id] = Math.max(5, Math.min(95, Math.round(current + fluctuation)));
+        });
+        setHeatHistory((h) => [...h.slice(-29), next]);
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   // For guest demo: allow viewing servers but not connecting
   const canConnect = canUsePremium;
@@ -476,10 +843,10 @@ const Dashboard: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-5 bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl p-1 w-fit">
-          {(["servers", "status", "history"] as const).map((tab) => (
+          {(["servers", "heat", "status", "history"] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-[#E85D4E] text-white" : "text-[#9CA3AF] hover:text-white"} ${tab !== "servers" && !canConnect ? "opacity-50" : ""}`}>
-              {tab === "servers" ? "Servers" : tab === "status" ? "Stats" : "History"}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-[#E85D4E] text-white" : "text-[#9CA3AF] hover:text-white"} ${tab !== "servers" && tab !== "heat" && !canConnect ? "opacity-50" : ""} flex items-center gap-1.5`}>
+              {tab === "servers" ? <><Server size={13} /> Servers</> : tab === "heat" ? <><Flame size={13} /> Heat Map</> : tab === "status" ? <><Activity size={13} /> Stats</> : <><Clock size={13} /> History</>}
             </button>
           ))}
         </div>
@@ -569,6 +936,17 @@ const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* Heat Map Tab — always visible */}
+        {activeTab === "heat" && (
+          <HeatMapTab
+            servers={servers}
+            heatLoads={heatLoads}
+            heatHistory={heatHistory}
+            canConnect={canConnect}
+            goToLogin={goToLogin}
+          />
         )}
 
         {/* Stats Tab — locked for guests */}
