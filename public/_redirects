@@ -3,3 +3,6 @@ http://* https://:splat 301!
 
 # Redirect www to non-www
 https://www.* https://:splat 301!
+
+# SPA fallback - all routes serve index.html
+/* /index.html 200

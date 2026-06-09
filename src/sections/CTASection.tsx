@@ -1,8 +1,8 @@
-import { Shield, Clock, Users } from 'lucide-react';
+import { Shield, Wifi, Users } from 'lucide-react';
 
 export default function CTASection() {
-  const goToPricing = () => {
-    window.location.hash = '/pricing';
+  const goToDashboard = () => {
+    window.location.hash = '/dashboard';
   };
 
   return (
@@ -10,7 +10,7 @@ export default function CTASection() {
       id="cta"
       className="w-full py-28 md:py-36"
       style={{
-        background: 'radial-gradient(ellipse at 50% 50%, rgba(232, 93, 78, 0.05) 0%, transparent 60%)',
+        background: 'radial-gradient(ellipse at 50% 50%, rgba(74, 222, 128, 0.05) 0%, transparent 60%)',
       }}
     >
       <div className="max-w-[800px] mx-auto px-6 lg:px-12 text-center">
@@ -26,27 +26,27 @@ export default function CTASection() {
         </h2>
 
         <p className="mt-6 text-[#D1D5DB] max-w-[560px] mx-auto text-lg">
-          Start your 3-day free trial today. No credit card required. 30-day money-back guarantee.
+          VelocityVPN is free forever. Bring your own VPN provider and start gaming with zero lag.
         </p>
 
         <div className="mt-10">
           <button
             type="button"
-            onClick={goToPricing}
-            className="inline-flex items-center justify-center px-12 py-5 bg-[#E85D4E] text-white rounded-lg text-sm font-medium uppercase tracking-[0.04em] hover:bg-[#D44A3C] transition-all glow-coral-pulse cursor-pointer border-0"
+            onClick={goToDashboard}
+            className="inline-flex items-center justify-center px-12 py-5 bg-[#4ADE80] text-[#050507] rounded-lg text-sm font-bold uppercase tracking-[0.04em] hover:bg-[#3ECF71] transition-all cursor-pointer border-0"
           >
-            Get VelocityVPN Now
+            Get Started Free
           </button>
         </div>
 
         <div className="mt-12 flex flex-wrap justify-center gap-6 md:gap-12">
           {[
-            { icon: Shield, text: 'Military-Grade Encryption' },
-            { icon: Clock, text: '30-Day Money-Back' },
-            { icon: Users, text: 'Free 3-Day Trial' },
+            { icon: Shield, text: 'Zero Logs Policy' },
+            { icon: Wifi, text: 'Works with Free VPNs' },
+            { icon: Users, text: 'All Features Unlocked' },
           ].map((badge) => (
             <div key={badge.text} className="flex items-center gap-2 text-[#6B7280]">
-              <badge.icon size={16} className="text-[#E85D4E]" />
+              <badge.icon size={16} className="text-[#4ADE80]" />
               <span className="text-xs uppercase tracking-wider">{badge.text}</span>
             </div>
           ))}

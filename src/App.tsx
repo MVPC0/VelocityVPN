@@ -1,16 +1,16 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router";
 import LandingPage from "@/pages/LandingPage";
+import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
-// Lazy load secondary pages for faster initial load
-const Pricing = lazy(() => import("@/pages/Pricing"));
+// Lazy load heavy pages to keep initial bundle small
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Login = lazy(() => import("@/pages/Login"));
+const Pricing = lazy(() => import("@/pages/Pricing"));
 
 function App() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#050507]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#050507] flex items-center justify-center text-[#6B7280]">Loading...</div>}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<Pricing />} />

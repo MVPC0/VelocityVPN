@@ -7,7 +7,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 const steps = [
   { num: '01', title: 'Connect', desc: 'Download VelocityVPN and connect with one click. Military-grade encryption keeps your traffic safe from the start.', icon: '🔌' },
-  { num: '02', title: 'Select Server', desc: 'Pick from 34 global locations. Our smart recommendation engine suggests the best server for your game.', icon: '🌐' },
+  { num: '02', title: 'Select Server', desc: 'Pick from 18 global locations. Our smart recommendation engine suggests the best server for your game.', icon: '🌐' },
   { num: '03', title: 'Auto-Optimize', desc: 'VelocityVPN automatically detects your game and applies optimized routing settings for the lowest possible ping.', icon: '⚡' },
   { num: '04', title: 'Launch Game', desc: 'Launch your favorite game with confidence. Your connection is now protected, optimized, and ready for competitive play.', icon: '🎮' },
   { num: '05', title: 'DDoS Shield', desc: 'Your real IP is hidden behind our servers. DDoS attacks hit our infrastructure, not your connection. Stay in the game.', icon: '🛡️' },

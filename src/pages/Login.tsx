@@ -112,7 +112,7 @@ export default function Login() {
             <>
               <div className="text-center mb-6">
                 <h2 className="font-['Archivo'] text-xl text-white mb-1">Welcome Back</h2>
-                <p className="text-sm text-[#6B7280]">Sign in to your account</p>
+                <p className="text-sm text-[#6B7280]">Sign in to save your provider configs across devices</p>
               </div>
 
               {/* Google Login */}
@@ -177,7 +177,7 @@ export default function Login() {
                   Continue as Guest
                 </button>
                 <p className="text-center text-[10px] text-[#6B7280] mt-2">
-                  Browse servers and test pings. Sign up for a free 3-day trial to connect.
+                  Guest mode is fully unlocked. No sign up required to use the dashboard.
                 </p>
               </div>
             </>
@@ -193,14 +193,14 @@ export default function Login() {
 
               <div className="mb-6">
                 <h2 className="font-['Archivo'] text-xl text-white mb-1">Create Account</h2>
-                <p className="text-sm text-[#6B7280]">Get your free 3-day trial</p>
+                <p className="text-sm text-[#6B7280]">Save your provider configs across devices</p>
               </div>
 
-              {/* Trial info banner */}
-              <div className="bg-[rgba(232,93,78,0.08)] border border-[rgba(232,93,78,0.15)] rounded-lg p-3 mb-4 flex items-center gap-2">
-                <Zap size={14} className="text-[#E85D4E] shrink-0" />
+              {/* Info banner */}
+              <div className="bg-[rgba(74,222,128,0.08)] border border-[rgba(74,222,128,0.15)] rounded-lg p-3 mb-4 flex items-center gap-2">
+                <Zap size={14} className="text-[#4ADE80] shrink-0" />
                 <p className="text-xs text-[#D1D5DB]">
-                  Sign up and verify your email to instantly get a <strong className="text-white">3-day free trial</strong> with all premium features unlocked.
+                  The dashboard is <strong className="text-white">100% free</strong>. Sign in to sync your provider configs across devices.
                 </p>
               </div>
 
@@ -237,7 +237,7 @@ export default function Login() {
                 )}
                 <button type="submit" disabled={signupMutation.isPending}
                   className="w-full py-2.5 bg-[#E85D4E] text-white rounded-lg text-sm font-medium hover:bg-[#D44A3C] transition-all disabled:opacity-50 cursor-pointer border-0">
-                  {signupMutation.isPending ? "Creating account..." : "Create Account & Start Trial"}
+                  {signupMutation.isPending ? "Creating account..." : "Create Free Account"}
                 </button>
               </form>
 
@@ -294,7 +294,7 @@ export default function Login() {
                 )}
                 <button type="submit" disabled={verifyMutation.isPending}
                   className="w-full py-2.5 bg-[#E85D4E] text-white rounded-lg text-sm font-medium hover:bg-[#D44A3C] transition-all disabled:opacity-50 cursor-pointer border-0">
-                  {verifyMutation.isPending ? "Verifying..." : "Verify & Start Trial"}
+                  {verifyMutation.isPending ? "Verifying..." : "Verify & Continue"}
                 </button>
                 <button type="button" onClick={() => { setError(""); resendMutation.mutate({ email }); }}
                   disabled={resendMutation.isPending}

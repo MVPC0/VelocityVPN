@@ -35,7 +35,7 @@ const features: Feature[] = [
   {
     icon: Globe,
     title: 'Global Servers',
-    description: '34 global locations across 6 continents. Smart routing automatically finds the fastest path to your game server.',
+    description: '18 global locations across 6 continents. Smart routing automatically finds the fastest path to your game server.',
     speed: 0.7,
     column: 3,
     floatDelay: -2,
