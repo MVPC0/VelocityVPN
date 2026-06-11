@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Flame, Bot, Skull, Gamepad2, Users, Zap,
   Globe, Crosshair, Swords, Target, Sparkles, Crown
@@ -81,20 +81,52 @@ interface Props {
 export default function ServerHeatMap({ servers, onSelect }: Props) {
   const [filter, setFilter] = useState("all");
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [liveLoads, setLiveLoads] = useState<Record<number, number>>({});
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+
+  // Auto-fluctuate loads every 3 seconds to simulate live data
+  const fluctuate = useCallback(() => {
+    setLiveLoads((prev) => {
+      const next: Record<number, number> = { ...prev };
+      for (const s of servers) {
+        const base = next[s.id] ?? s.load;
+        // Random shift between -8% and +8%, clamped to 5-95
+        const shift = Math.floor(Math.random() * 17) - 8;
+        next[s.id] = Math.max(5, Math.min(95, base + shift));
+      }
+      return next;
+    });
+    setLastUpdate(Date.now());
+  }, [servers]);
+
+  useEffect(() => {
+    // Initialize
+    fluctuate();
+    const interval = setInterval(fluctuate, 10000);
+    return () => clearInterval(interval);
+  }, [fluctuate]);
+
+  // Merge live loads into server data
+  const liveServers = useMemo(() => {
+    return servers.map((s) => ({
+      ...s,
+      load: liveLoads[s.id] ?? s.load,
+    }));
+  }, [servers, liveLoads]);
 
   const filtered = useMemo(() => {
     const f = VIBE_FILTERS.find((v) => v.key === filter);
-    if (!f || f.key === "all") return servers;
-    return servers.filter((s) => {
+    if (!f || f.key === "all") return liveServers;
+    return liveServers.filter((s) => {
       if (f.maxLoad !== undefined && s.load > f.maxLoad) return false;
       if (f.minLoad !== undefined && s.load < f.minLoad) return false;
       return true;
     });
-  }, [servers, filter]);
+  }, [liveServers, filter]);
 
   const avgLoad = useMemo(() => {
-    return servers.length > 0 ? Math.round(servers.reduce((sum, s) => sum + s.load, 0) / servers.length) : 0;
-  }, [servers]);
+    return liveServers.length > 0 ? Math.round(liveServers.reduce((sum, s) => sum + s.load, 0) / liveServers.length) : 0;
+  }, [liveServers]);
 
   // Group by region
   const byRegion = useMemo(() => {
@@ -116,8 +148,13 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
               <Flame size={20} className="text-[#E85D4E]" />
               Pick Your Lobby
             </h3>
-            <p className="text-xs text-[#6B7280] mt-1">
+            <p className="text-xs text-[#6B7280] mt-1 flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#4ADE80] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#4ADE80]" />
+              </span>
               Average load: <span className="text-white font-bold">{avgLoad}%</span> — {servers.length} servers live
+              <span className="text-[10px] text-[#4B5563]">Updated {new Date(lastUpdate).toLocaleTimeString()}</span>
             </p>
           </div>
         </div>
