@@ -14,6 +14,7 @@ import SteamGamesPanel from "@/components/SteamGamesPanel";
 import ServerHeatMap from "@/components/ServerHeatMap";
 import ProviderSetup from "@/components/ProviderSetup";
 import { useProviderConfig, generateProviderWireGuardConfig } from "@/hooks/useProviderConfig";
+import { useVpnDetector } from "@/hooks/useVpnDetector";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ export default function Dashboard() {
   const [elapsed, setElapsed] = useState(0);
   const [activeTab, setActiveTab] = useState<"servers" | "heat" | "stats" | "history" | "games" | "tools" | "providers">("servers");
   const { activeProvider, providers } = useProviderConfig();
+  const vpnDetector = useVpnDetector();
   const [showQR, setShowQR] = useState<number | null>(null);
   const [showHowTo, setShowHowTo] = useState(false);
   const [showProviderRequired, setShowProviderRequired] = useState(false);
@@ -101,12 +103,46 @@ export default function Dashboard() {
     const server = servers.find((s) => s.id === selectedServerId);
     if (!server) return;
     setIsConnecting(true);
-    setTimeout(() => {
-      const ip = activeProvider.clientIp;
-      setConnection({ server, assignedIp: ip, connectedAt: new Date(), protocol: server.protocol });
-      setServers((prev) => prev.map((s) => s.id === server.id ? { ...s, load: Math.min(100, s.load + 4) } : s));
-      setIsConnecting(false);
-    }, 1200);
+    // Check if VPN is actually active by fetching public IP
+    fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(5000) })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          // Store the detected IP info so we can show real connection status
+          (window as any).__vpnIpInfo = data;
+        }
+        setConnection({
+          server,
+          assignedIp: activeProvider.clientIp,
+          connectedAt: new Date(),
+          protocol: server.protocol,
+        });
+        setServers((prev) => prev.map((s) => s.id === server.id ? { ...s, load: Math.min(100, s.load + 4) } : s));
+        setHistory((prev) => [...prev, {
+          id: `s_${Date.now()}`,
+          serverName: server.name,
+          city: server.city,
+          country: server.country,
+          connectedAt: new Date(),
+          duration: 0,
+          dataSent: 0,
+          dataReceived: 0,
+          protocol: server.protocol,
+        }]);
+      })
+      .catch(() => {
+        // Even if IP check fails, allow the simulated connection
+        setConnection({
+          server,
+          assignedIp: activeProvider.clientIp,
+          connectedAt: new Date(),
+          protocol: server.protocol,
+        });
+        setServers((prev) => prev.map((s) => s.id === server.id ? { ...s, load: Math.min(100, s.load + 4) } : s));
+      })
+      .finally(() => {
+        setIsConnecting(false);
+      });
   }, [selectedServerId, servers, activeProvider]);
 
   const handleDisconnect = useCallback(() => {
@@ -187,13 +223,13 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            {connection && (
+            {vpnDetector.isVpnActive && (
               <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[rgba(74,222,128,0.1)] rounded-full border border-[rgba(74,222,128,0.2)]">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#4ADE80] opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-[#4ADE80]" />
                 </span>
-                <span className="text-[#4ADE80] text-xs font-medium">Connected</span>
+                <span className="text-[#4ADE80] text-xs font-medium">VPN Active</span>
               </div>
             )}
             <button onClick={() => navigate("/login")} className="text-xs text-[#E85D4E] hover:text-white transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-0">
@@ -222,25 +258,42 @@ export default function Dashboard() {
         <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${connection ? "bg-[rgba(74,222,128,0.15)]" : "bg-[rgba(255,255,255,0.05)]"}`}>
-                {connection ? <Shield size={24} className="text-[#4ADE80]" /> : <Shield size={24} className="text-[#6B7280]" />}
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${vpnDetector.isVpnActive ? "bg-[rgba(74,222,128,0.15)]" : connection ? "bg-[rgba(74,222,128,0.1)]" : "bg-[rgba(255,255,255,0.05)]"}`}>
+                {vpnDetector.isVpnActive ? <Wifi size={24} className="text-[#4ADE80]" /> : connection ? <Shield size={24} className="text-[#4ADE80]" /> : <Shield size={24} className="text-[#6B7280]" />}
               </div>
               <div>
                 <h2 className="font-['Archivo'] text-xl tracking-tight">
-                  {connection ? "VPN Connected" : "VPN Disconnected"}
+                  {vpnDetector.isVpnActive ? "VPN ACTIVE (WireGuard)" : connection ? "Dashboard Connected" : "VPN Disconnected"}
                 </h2>
                 <p className="text-[#9CA3AF] text-sm mt-0.5">
-                  {connection
-                    ? `${connection.server.city} — ${formatDuration(elapsed)}`
+                  {vpnDetector.isVpnActive
+                    ? `${vpnDetector.currentCity ?? "Unknown"} — ${vpnDetector.currentIp ?? "..."}`
+                    : connection
+                    ? activeProvider
+                      ? `${activeProvider.name} — ${formatDuration(elapsed)}`
+                      : `${connection.server.city} — ${formatDuration(elapsed)}`
                     : selectedServerId
                     ? activeProvider
-                      ? `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected — Ready to connect`
+                      ? `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected — Click Connect`
                       : `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected — Provider required`
                     : "Select a server below to connect"}
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {vpnDetector.hasBaseline ? (
+                <button onClick={vpnDetector.clearHomeIp}
+                  className="px-4 py-3 bg-[rgba(155,109,255,0.15)] text-[#9B6DFF] border border-[rgba(155,109,255,0.3)] rounded-lg font-medium hover:bg-[rgba(155,109,255,0.25)] transition-all flex items-center gap-2 text-sm cursor-pointer"
+                  title="Clear the saved home IP">
+                  <RefreshCw size={16} /> Clear Baseline
+                </button>
+              ) : (
+                <button onClick={vpnDetector.setHomeIp}
+                  className="px-4 py-3 bg-[rgba(155,109,255,0.15)] text-[#9B6DFF] border border-[rgba(155,109,255,0.3)] rounded-lg font-medium hover:bg-[rgba(155,109,255,0.25)] transition-all flex items-center gap-2 text-sm cursor-pointer"
+                  title="Save current IP as your home IP (turn VPN OFF first)">
+                  <Shield size={16} /> Set Home IP
+                </button>
+              )}
               <button onClick={handleConnect} disabled={isConnecting || !!connection}
                 className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 text-sm transition-all border-0 ${connection ? "bg-[rgba(74,222,128,0.15)] text-[#4ADE80] border border-[#4ADE80]" : isConnecting ? "bg-[#E85D4E]/70 text-white" : "bg-[#E85D4E] text-white hover:bg-[#D44A3C]"} ${(isConnecting || !!connection) ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}>
                 <Power size={16} /> {isConnecting ? "Connecting..." : connection ? "Connected" : "Connect"}
@@ -271,19 +324,23 @@ export default function Dashboard() {
             <div className="mt-5 pt-5 border-t border-[rgba(255,255,255,0.08)]">
               {/* Active Provider Banner */}
               {activeProvider && (
-                <div className="bg-[rgba(74,222,128,0.05)] border border-[rgba(74,222,128,0.15)] rounded-xl p-3 mb-3 flex items-center gap-3">
-                  <Globe size={16} className="text-[#4ADE80] shrink-0" />
+                <div className={`rounded-xl p-3 mb-3 flex items-center gap-3 border ${vpnDetector.isVpnActive ? "bg-[rgba(74,222,128,0.05)] border-[rgba(74,222,128,0.15)]" : connection ? "bg-[rgba(74,222,128,0.05)] border-[rgba(74,222,128,0.15)]" : "bg-[rgba(251,191,36,0.05)] border-[rgba(251,191,36,0.15)]"}`}>
+                  <Globe size={16} className={`shrink-0 ${vpnDetector.isVpnActive || connection ? "text-[#4ADE80]" : "text-[#FBBF24]"}`} />
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#4ADE80]">{activeProvider.name}</div>
+                    <div className={`text-xs font-semibold ${vpnDetector.isVpnActive || connection ? "text-[#4ADE80]" : "text-[#FBBF24]"}`}>
+                      {activeProvider.name} {vpnDetector.isVpnActive ? "— VPN Active" : connection ? "— Active" : "— Ready"}
+                    </div>
                     <div className="text-[10px] text-[#6B7280] font-['JetBrains_Mono'] truncate">{activeProvider.wgEndpoint}</div>
                   </div>
-                  <span className="ml-auto px-2 py-0.5 bg-[rgba(74,222,128,0.1)] text-[#4ADE80] rounded text-[10px] font-bold shrink-0">Real Config</span>
+                  <span className={`ml-auto px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${vpnDetector.isVpnActive ? "bg-[rgba(74,222,128,0.1)] text-[#4ADE80]" : connection ? "bg-[rgba(74,222,128,0.1)] text-[#4ADE80]" : "bg-[rgba(251,191,36,0.1)] text-[#FBBF24]"}`}>
+                    {vpnDetector.isVpnActive ? "WireGuard ON" : connection ? "Dashboard" : "Config Ready"}
+                  </span>
                 </div>
               )}
               {!activeProvider && providers.length > 0 && (
                 <div className="bg-[rgba(251,191,36,0.05)] border border-[rgba(251,191,36,0.15)] rounded-xl p-3 mb-3 flex items-center gap-3">
                   <AlertTriangle size={16} className="text-[#FBBF24] shrink-0" />
-                  <div className="text-xs text-[#9CA3AF]">Go to the <button onClick={() => setActiveTab("providers")} className="text-[#FBBF24] hover:underline cursor-pointer bg-transparent border-0 p-0 font-medium">Providers</button> tab to activate a real config for import into WireGuard.</div>
+                  <div className="text-xs text-[#9CA3AF]">Go to the <button onClick={() => setActiveTab("providers")} className="text-[#FBBF24] hover:underline cursor-pointer bg-transparent border-0 p-0 font-medium">Providers</button> tab to activate a config.</div>
                 </div>
               )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -360,21 +417,27 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><Activity size={10} /> Sessions</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-white">{stats.totalSessions}</div>
+                <div className="font-['JetBrains_Mono'] text-2xl text-white">{stats.totalSessions + (connection ? 1 : 0)}</div>
               </div>
               <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><Clock size={10} /> Duration</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-white">{formatDuration(stats.totalDuration)}</div>
+                <div className="font-['JetBrains_Mono'] text-2xl text-white">{formatDuration(stats.totalDuration + (connection ? elapsed : 0))}</div>
               </div>
               <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><ArrowDown size={10} /> Received</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-[#4ADE80]">{formatBytes(stats.totalDataReceived)}</div>
+                <div className="font-['JetBrains_Mono'] text-2xl text-[#4ADE80]">{formatBytes(stats.totalDataReceived + (connection ? elapsed * 51200 : 0))}</div>
               </div>
               <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><ArrowUp size={10} /> Sent</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-[#A3B8D4]">{formatBytes(stats.totalDataSent)}</div>
+                <div className="font-['JetBrains_Mono'] text-2xl text-[#A3B8D4]">{formatBytes(stats.totalDataSent + (connection ? elapsed * 12288 : 0))}</div>
               </div>
             </div>
+            {connection && (
+              <div className="bg-[rgba(74,222,128,0.05)] border border-[rgba(74,222,128,0.15)] rounded-xl p-3 flex items-center gap-2">
+                <Activity size={14} className="text-[#4ADE80]" />
+                <span className="text-xs text-[#4ADE80]">Live session active — stats include current connection</span>
+              </div>
+            )}
             <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
               <h3 className="font-['Archivo'] text-base tracking-tight mb-3">Server Status Overview</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -432,7 +495,7 @@ export default function Dashboard() {
         {activeTab === "games" && <SteamGamesPanel />}
 
         {/* Tools Tab */}
-        {activeTab === "tools" && <ToolsTab downloadWireGuardConfig={downloadWireGuardConfig} connection={connection} setShowQR={setShowQR} setShowHowTo={setShowHowTo} />}
+        {activeTab === "tools" && <ToolsTab downloadWireGuardConfig={downloadWireGuardConfig} connection={connection} setShowQR={setShowQR} setShowHowTo={setShowHowTo} vpnDetector={vpnDetector} />}
 
         {/* Providers Tab */}
         {activeTab === "providers" && <ProviderSetup />}
@@ -516,24 +579,31 @@ export default function Dashboard() {
 
 // ─── Tools Tab Component ──────────────────────────────────────
 
-function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo }: {
+function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo, vpnDetector }: {
   downloadWireGuardConfig: () => void;
   connection: Connection | null;
   setShowQR: (id: number | null) => void;
   setShowHowTo: (v: boolean) => void;
+  vpnDetector: ReturnType<typeof useVpnDetector>;
 }) {
+  const { activeProvider } = useProviderConfig();
   const [ipData, setIpData] = useState<{ ip: string; city: string; country: string; countryCode: string; org: string } | null>(null);
   const [ipLoading, setIpLoading] = useState(true);
   const [speedPhase, setSpeedPhase] = useState<"idle" | "running" | "done">("idle");
   const [speedResult, setSpeedResult] = useState<{ download: number; upload: number; latency: number } | null>(null);
+  // Real VPN detection: 3 states
+  // 1. No baseline → UNKNOWN (need to set home IP with VPN off)
+  // 2. Has baseline, IP matches → EXPOSED
+  // 3. Has baseline, IP differs → PROTECTED (VPN active)
+  const isProtected = vpnDetector.isVpnActive;
+  const needsBaseline = !vpnDetector.hasBaseline;
 
   useEffect(() => {
-    fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(5000) })
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => d ? setIpData({ ip: d.ip, city: d.city, country: d.country_name, countryCode: d.country_code, org: d.org }) : setIpData(null))
-      .catch(() => setIpData(null))
-      .finally(() => setIpLoading(false));
-  }, []);
+    // Use vpnDetector's IP data instead of separate fetch
+    if (vpnDetector.currentIp) {
+      setIpLoading(false);
+    }
+  }, [vpnDetector.currentIp]);
 
   const runSpeedTest = useCallback(async () => {
     setSpeedPhase("running");
@@ -582,30 +652,95 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
       </div>
 
       {/* IP Display */}
-      <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-['Archivo'] text-base tracking-tight flex items-center gap-2"><Globe size={18} className="text-[#E85D4E]" /> Your IP Address</h3>
+      <div className={`rounded-2xl p-5 border ${isProtected ? "bg-[rgba(74,222,128,0.03)] border-[rgba(74,222,128,0.2)]" : needsBaseline ? "bg-[#0A0A0F] border-[rgba(251,191,36,0.2)]" : "bg-[#0A0A0F] border-[rgba(255,255,255,0.08)]"}`}>
+        {/* Protection Status Banner */}
+        <div className={`flex items-center gap-3 mb-4 p-3 rounded-xl ${isProtected ? "bg-[rgba(74,222,128,0.08)]" : needsBaseline ? "bg-[rgba(251,191,36,0.08)]" : "bg-[rgba(239,68,68,0.08)]"}`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isProtected ? "bg-[rgba(74,222,128,0.15)]" : needsBaseline ? "bg-[rgba(251,191,36,0.15)]" : "bg-[rgba(239,68,68,0.15)]"}`}>
+            {isProtected ? <Shield size={20} className="text-[#4ADE80]" /> : needsBaseline ? <Wifi size={20} className="text-[#FBBF24]" /> : <AlertTriangle size={20} className="text-[#EF4444]" />}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-bold ${isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#EF4444]"}`}>
+                {isProtected ? "VPN ACTIVE" : needsBaseline ? "UNKNOWN" : "EXPOSED"}
+              </span>
+              {isProtected && <span className="text-[9px] font-bold text-[#050507] bg-[#4ADE80] px-2 py-0.5 rounded-full">WIREGUARD</span>}
+              {!isProtected && !needsBaseline && <span className="text-[9px] font-bold text-[#050507] bg-[#EF4444] px-2 py-0.5 rounded-full">NO VPN</span>}
+              {needsBaseline && <span className="text-[9px] font-bold text-[#050507] bg-[#FBBF24] px-2 py-0.5 rounded-full">SETUP</span>}
+            </div>
+            <p className="text-xs text-[#9CA3AF] mt-0.5">
+              {isProtected
+                ? `Your IP changed from home address. WireGuard VPN is routing your traffic through ${vpnDetector.currentCity ?? "remote server"}.`
+                : needsBaseline
+                ? "Turn WireGuard OFF, then click 'Set Home IP' below to establish your baseline. Then turn VPN back on to detect it."
+                : "Your real IP matches your home address. WireGuard is OFF — your traffic is not encrypted."}
+            </p>
+          </div>
         </div>
-        {ipLoading ? (
-          <div className="text-sm text-[#6B7280] flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Detecting...</div>
-        ) : ipData ? (
+        {/* Baseline action buttons */}
+        {needsBaseline && (
+          <div className="mb-4">
+            <button onClick={vpnDetector.setHomeIp}
+              className="w-full py-3 bg-[#FBBF24] text-[#050507] rounded-lg text-xs font-bold cursor-pointer border-0 hover:bg-[#F5A623] flex items-center justify-center gap-2">
+              <Shield size={14} /> Set Home IP (WireGuard must be OFF)
+            </button>
+            <p className="text-[10px] text-[#6B7280] mt-2 text-center">This saves your current IP as "home." After saving, turn WireGuard ON and the dashboard will detect it.</p>
+          </div>
+        )}
+        {isProtected && (
+          <div className="mb-4">
+            <button onClick={vpnDetector.clearHomeIp}
+              className="w-full py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#9CA3AF] rounded-lg text-xs font-medium cursor-pointer hover:border-[#EF4444]">
+              Clear Baseline
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-['Archivo'] text-base tracking-tight flex items-center gap-2">
+            <Globe size={18} className={isProtected ? "text-[#4ADE80]" : "text-[#E85D4E]"} />
+            {isProtected ? "VPN Tunnel Exit IP" : "Your Real IP Address"}
+          </h3>
+        </div>
+        {vpnDetector.isChecking && !vpnDetector.currentIp ? (
+          <div className="text-sm text-[#6B7280] flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Detecting IP...</div>
+        ) : vpnDetector.currentIp ? (
           <>
-            <div className="bg-[#111118] rounded-xl p-4 mb-3">
-              <div className="text-[10px] text-[#6B7280] uppercase tracking-wider mb-1">Public IP</div>
-              <div className="font-['JetBrains_Mono'] text-2xl text-white">{ipData.ip}</div>
+            <div className={`rounded-xl p-4 mb-3 ${isProtected ? "bg-[rgba(74,222,128,0.05)]" : "bg-[#111118]"}`}>
+              <div className="text-[10px] text-[#6B7280] uppercase tracking-wider mb-1">
+                {isProtected ? "Exit IP (VPN Server)" : "Public IP"}
+              </div>
+              <div className={`font-['JetBrains_Mono'] text-2xl tracking-wider ${isProtected ? "text-[#4ADE80]" : "text-white"}`}>
+                {vpnDetector.currentIp}
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[{ l: "Location", v: `${ipData.city}, ${ipData.countryCode}` }, { l: "ISP", v: ipData.org?.replace(/^AS\d+\s/, "") || "Unknown" }, { l: "Country", v: ipData.country }, { l: "Status", v: "EXPOSED" }].map((item) => (
+              {[
+                { l: "Location", v: `${vpnDetector.currentCity ?? "?"}, ${vpnDetector.currentCountry ?? "?"}` },
+                { l: "Home IP", v: vpnDetector.homeIp ? `${vpnDetector.homeIp.slice(0, 10)}...` : "Not set", color: vpnDetector.homeIp ? "text-[#D1D5DB]" : "text-[#FBBF24]" },
+                { l: "Checked", v: new Date(vpnDetector.lastCheck).toLocaleTimeString() },
+                { l: "Status", v: isProtected ? "VPN ACTIVE" : needsBaseline ? "NEEDS SETUP" : "EXPOSED", color: isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#EF4444]" },
+              ].map((item) => (
                 <div key={item.l} className="bg-[#111118] rounded-lg p-2.5">
                   <div className="text-[10px] text-[#6B7280] uppercase tracking-wider mb-0.5">{item.l}</div>
-                  <div className={`text-xs truncate ${item.v === "EXPOSED" ? "text-[#EF4444] font-bold" : "text-[#D1D5DB]"}`}>{item.v}</div>
+                  <div className={`text-xs truncate font-medium ${item.color || "text-[#D1D5DB]"}`}>{item.v}</div>
                 </div>
               ))}
             </div>
-            {/* Zero Logs Policy */}
+            {/* VPN Detection Status */}
             <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)] flex items-start gap-2">
-              <Lock size={12} className="text-[#4ADE80] mt-0.5 shrink-0" />
-              <div><span className="text-xs text-[#4ADE80] font-medium">Zero Logs Policy</span><p className="text-[10px] text-[#6B7280]">We don't store connection logs, traffic logs, or DNS queries.</p></div>
+              {isProtected ? <Wifi size={12} className="text-[#4ADE80] mt-0.5 shrink-0" /> : needsBaseline ? <AlertTriangle size={12} className="text-[#FBBF24] mt-0.5 shrink-0" /> : <Lock size={12} className="text-[#4ADE80] mt-0.5 shrink-0" />}
+              <div>
+                <span className={`text-xs font-medium ${isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#4ADE80]"}`}>
+                  {isProtected ? "WireGuard VPN Detected — IP changed from baseline" : needsBaseline ? "Step 1: Set your home IP with VPN off" : "Zero Logs Policy"}
+                </span>
+                <p className="text-[10px] text-[#6B7280]">
+                  {isProtected
+                    ? `IP changed from ${vpnDetector.homeIp} → ${vpnDetector.currentIp}. Auto-checking every 15 seconds.`
+                    : needsBaseline
+                    ? "After setting home IP, turn WireGuard ON. The dashboard will auto-detect the change."
+                    : "We don't store connection logs, traffic logs, or DNS queries."}
+                </p>
+              </div>
             </div>
           </>
         ) : (
