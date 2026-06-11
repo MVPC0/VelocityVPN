@@ -17,7 +17,7 @@ export interface VpnStatus {
 }
 
 const STORAGE_KEY = "velocityvpn_homeip";
-const POLL_INTERVAL = 15000; // Check every 15 seconds
+const POLL_INTERVAL = 5000; // Check every 5 seconds
 
 function loadHomeIp(): string | null {
   try {
@@ -103,11 +103,16 @@ export function useVpnDetector() {
           homeIp: data.ip,
           hasBaseline: true,
           isVpnActive: false, // Just set baseline, so we're not on VPN
+          currentIp: data.ip,
+          currentCity: data.city,
+          currentCountry: data.country_name,
           lastCheck: Date.now(),
         }));
       }
+      // Immediately re-check so if VPN is already on, we detect it
+      setTimeout(() => checkIp(), 500);
     } catch { /* ignore */ }
-  }, []);
+  }, [checkIp]);
 
   // Clear home IP
   const clearHomeIp = useCallback(() => {
@@ -118,7 +123,8 @@ export function useVpnDetector() {
       hasBaseline: false,
       isVpnActive: false,
     }));
-    checkIp();
+    // Immediate re-check
+    setTimeout(() => checkIp(), 500);
   }, [checkIp]);
 
   return { ...status, checkIp, setHomeIp, clearHomeIp };
