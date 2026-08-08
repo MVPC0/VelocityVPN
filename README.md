@@ -2,7 +2,7 @@
 
 A free, open-source WireGuard VPN dashboard for gamers. Manage your VPN providers, test server pings, track game server populations, and generate WireGuard configs — all in one place.
 
-**[Live Demo](https://xgv7tgjaub4hq.kimi.page)**
+**[Live Demo](https://velocity-vpn.netlify.app)**
 
 ## Features
 
