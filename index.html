@@ -342,11 +342,11 @@ function AppProvider({ children }) {
   const [servers, setServers] = useState(SERVERS.map(s => ({...s})));
   const [games, setGames] = useState(GAMES.map(g => ({...g})));
 
-  useEffect(() => { localStorage.setItem("vv_provs", JSON.stringify(provs)); }, [provs]);
-  useEffect(() => { if (actProv) localStorage.setItem("vv_act", actProv); }, [actProv]);
-  useEffect(() => { localStorage.setItem("vv_hist", JSON.stringify(hist)); }, [hist]);
-  useEffect(() => { localStorage.setItem("vv_stats", JSON.stringify(stats)); }, [stats]);
-  useEffect(() => { localStorage.setItem("vv_vpn", JSON.stringify(vpn)); }, [vpn]);
+  useEffect(() => { try { localStorage.setItem("vv_provs", JSON.stringify(provs)); } catch(e){} }, [provs]);
+  useEffect(() => { try { if (actProv) localStorage.setItem("vv_act", actProv); } catch(e){} }, [actProv]);
+  useEffect(() => { try { localStorage.setItem("vv_hist", JSON.stringify(hist)); } catch(e){} }, [hist]);
+  useEffect(() => { try { localStorage.setItem("vv_stats", JSON.stringify(stats)); } catch(e){} }, [stats]);
+  useEffect(() => { try { localStorage.setItem("vv_vpn", JSON.stringify(vpn)); } catch(e){} }, [vpn]);
 
   useEffect(() => { let iv; if (conn) { iv = setInterval(() => setElapsed(p => p+1), 1000); } else { setElapsed(0); } return () => clearInterval(iv); }, [conn]);
 
