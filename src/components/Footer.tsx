@@ -3,15 +3,15 @@ import React from 'react';
 const footerColumns = [
   {
     title: 'Product',
-    links: ['Download', 'Pricing', 'Servers', 'Status'],
+    links: ['Dashboard', 'Pricing', 'GitHub'],
   },
   {
-    title: 'Support',
-    links: ['Help Center', 'Contact', 'Privacy', 'Terms'],
+    title: 'Honest limits',
+    links: ['Not a VPN network', 'No support desk', 'Bring your provider'],
   },
   {
-    title: 'Community',
-    links: ['Discord', 'Reddit', 'Twitter', 'Blog'],
+    title: 'Source',
+    links: ['github.com/MVPC0/VelocityVPN'],
   },
 ];
 
@@ -77,9 +77,15 @@ const Footer: React.FC = () => {
                 {col.links.map((link) => (
                   <li key={link}>
                     <a
-                      href="#"
+                      href={link === 'Dashboard' ? '#/dashboard' : link === 'Pricing' ? '#/pricing' : link === 'GitHub' || link.startsWith('github.com') ? 'https://github.com/MVPC0/VelocityVPN' : '#'}
                       className="text-sm text-[#9CA3AF] hover:text-white transition-colors duration-200"
-                      onClick={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        if (link === 'GitHub' || link.startsWith('github.com')) return;
+                        if (link === 'Dashboard' || link === 'Pricing') return;
+                        e.preventDefault();
+                      }}
+                      target={link === 'GitHub' || (typeof link === 'string' && link.startsWith('github.com')) ? '_blank' : undefined}
+                      rel="noreferrer"
                     >
                       {link}
                     </a>
@@ -93,9 +99,9 @@ const Footer: React.FC = () => {
         {/* Bottom Bar */}
         <div className="mt-12 pt-6 border-t border-[rgba(255,255,255,0.08)] flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-xs text-[#6B7280]">
-            &copy; 2025 VelocityVPN. All rights reserved.
+            &copy; 2026 VelocityVPN. Dashboard only - not a VPN carrier.
           </p>
-          <p className="text-xs text-[#6B7280]">Made for gamers, by gamers.</p>
+          <p className="text-xs text-[#6B7280]">Open source. Bring your own provider.</p>
         </div>
       </div>
     </footer>
