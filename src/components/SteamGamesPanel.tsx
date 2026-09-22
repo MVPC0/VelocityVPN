@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Gamepad2, Users, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
 
 // ─── Steam Games Panel ────────────────────────────────────────
-// Fetches live player counts DIRECTLY from Steam's public API
-// No backend required — Steam supports CORS!
+// Tries Steam's public API. If it fails or CORS blocks, shows labeled estimates.
+// Fortnite is always an estimate (no Epic public count used).
 
 const STEAM_GAMES = [
   { appId: 730, name: "CS2", genre: "FPS" },
@@ -32,7 +32,7 @@ const STEAM_GAMES = [
   { appId: 238960, name: "Path of Exile", genre: "ARPG" },
 ];
 
-// Fortnite is Epic exclusive — modeled
+// Fortnite is Epic exclusive - modeled
 // Realistic fallback player counts (based on known Steam data)
 function getFallbackPlayerCount(appId: number): number {
   const estimates: Record<number, number> = {
@@ -185,7 +185,7 @@ export default function SteamGamesPanel() {
   if (loading) {
     return (
       <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-8 flex items-center justify-center gap-2 text-[#6B7280]">
-        <Loader2 size={16} className="animate-spin" /> Loading live Steam data...
+        <Loader2 size={16} className="animate-spin" /> Loading Steam counts…
       </div>
     );
   }
@@ -219,14 +219,14 @@ export default function SteamGamesPanel() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-['Archivo'] text-base tracking-tight flex items-center gap-2">
             <Gamepad2 size={18} className="text-[#E85D4E]" />
-            Live Player Counts
+            Player counts
           </h3>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1 text-[9px] text-[#6B7280]">
               <span className="w-2 h-2 rounded-full bg-[#4ADE80]" /> Steam
             </span>
             <span className="flex items-center gap-1 text-[9px] text-[#9B6DFF]">
-              <span className="w-2 h-2 rounded-full bg-[#9B6DFF]" /> Epic
+              <span className="w-2 h-2 rounded-full bg-[#9B6DFF]" /> Fortnite estimate
             </span>
           </div>
         </div>
