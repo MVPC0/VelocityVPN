@@ -131,7 +131,7 @@ export default function Dashboard() {
         }]);
       })
       .catch(() => {
-        // Even if IP check fails, allow the simulated connection
+        // UI session only. This does not create a WireGuard tunnel.
         setConnection({
           server,
           assignedIp: activeProvider.clientIp,
@@ -177,7 +177,7 @@ export default function Dashboard() {
 
   const downloadWireGuardConfig = useCallback(() => {
     if (!connection) return;
-    // Use active provider config if available — this creates a REAL working config
+    // Use active provider config if available - this creates a REAL working config
     if (activeProvider) {
       const config = generateProviderWireGuardConfig(activeProvider);
       const blob = new Blob([config], { type: "text/plain" });
@@ -263,19 +263,19 @@ export default function Dashboard() {
               </div>
               <div>
                 <h2 className="font-['Archivo'] text-xl tracking-tight">
-                  {vpnDetector.isVpnActive ? "VPN ACTIVE (WireGuard)" : connection ? "Dashboard Connected" : "VPN Disconnected"}
+                  {vpnDetector.isVpnActive ? "Public IP looks like a VPN" : connection ? "Dashboard session only - not a tunnel" : "No dashboard session"}
                 </h2>
                 <p className="text-[#9CA3AF] text-sm mt-0.5">
                   {vpnDetector.isVpnActive
-                    ? `${vpnDetector.currentCity ?? "Unknown"} — ${vpnDetector.currentIp ?? "..."}`
+                    ? `${vpnDetector.currentCity ?? "Unknown"} - ${vpnDetector.currentIp ?? "..."}`
                     : connection
                     ? activeProvider
-                      ? `${activeProvider.name} — ${formatDuration(elapsed)}`
-                      : `${connection.server.city} — ${formatDuration(elapsed)}`
+                      ? `${activeProvider.name} - ${formatDuration(elapsed)}`
+                      : `${connection.server.city} - ${formatDuration(elapsed)}`
                     : selectedServerId
                     ? activeProvider
-                      ? `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected — Click Connect`
-                      : `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected — Provider required`
+                      ? `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected - Click Connect`
+                      : `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected - Provider required`
                     : "Select a server below to connect"}
                 </p>
               </div>
@@ -328,7 +328,7 @@ export default function Dashboard() {
                   <Globe size={16} className={`shrink-0 ${vpnDetector.isVpnActive || connection ? "text-[#4ADE80]" : "text-[#FBBF24]"}`} />
                   <div className="min-w-0">
                     <div className={`text-xs font-semibold ${vpnDetector.isVpnActive || connection ? "text-[#4ADE80]" : "text-[#FBBF24]"}`}>
-                      {activeProvider.name} {vpnDetector.isVpnActive ? "— VPN Active" : connection ? "— Active" : "— Ready"}
+                      {activeProvider.name} {vpnDetector.isVpnActive ? "- VPN Active" : connection ? "- Active" : "- Ready"}
                     </div>
                     <div className="text-[10px] text-[#6B7280] font-['JetBrains_Mono'] truncate">{activeProvider.wgEndpoint}</div>
                   </div>
@@ -435,7 +435,7 @@ export default function Dashboard() {
             {connection && (
               <div className="bg-[rgba(74,222,128,0.05)] border border-[rgba(74,222,128,0.15)] rounded-xl p-3 flex items-center gap-2">
                 <Activity size={14} className="text-[#4ADE80]" />
-                <span className="text-xs text-[#4ADE80]">Live session active — stats include current connection</span>
+                <span className="text-xs text-[#4ADE80]">Live session active - stats include current connection</span>
               </div>
             )}
             <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
@@ -672,7 +672,7 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
                 ? `Your IP changed from home address. WireGuard VPN is routing your traffic through ${vpnDetector.currentCity ?? "remote server"}.`
                 : needsBaseline
                 ? "Turn WireGuard OFF, then click 'Set Home IP' below to establish your baseline. Then turn VPN back on to detect it."
-                : "Your real IP matches your home address. WireGuard is OFF — your traffic is not encrypted."}
+                : "Your real IP matches your home address. WireGuard is OFF - your traffic is not encrypted."}
             </p>
           </div>
         </div>
@@ -731,7 +731,7 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
               {isProtected ? <Wifi size={12} className="text-[#4ADE80] mt-0.5 shrink-0" /> : needsBaseline ? <AlertTriangle size={12} className="text-[#FBBF24] mt-0.5 shrink-0" /> : <Lock size={12} className="text-[#4ADE80] mt-0.5 shrink-0" />}
               <div>
                 <span className={`text-xs font-medium ${isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#4ADE80]"}`}>
-                  {isProtected ? "WireGuard VPN Detected — IP changed from baseline" : needsBaseline ? "Step 1: Set your home IP with VPN off" : "Zero Logs Policy"}
+                  {isProtected ? "WireGuard VPN Detected - IP changed from baseline" : needsBaseline ? "Step 1: Set your home IP with VPN off" : "Zero Logs Policy"}
                 </span>
                 <p className="text-[10px] text-[#6B7280]">
                   {isProtected
@@ -839,17 +839,17 @@ function HowToConnectModal({ onClose }: { onClose: () => void }) {
 
         <div className="bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.2)] rounded-xl p-4 mb-5 flex gap-3">
           <AlertTriangle size={18} className="text-[#FBBF24] shrink-0 mt-0.5" />
-          <div className="text-xs text-[#9CA3AF] leading-relaxed">VelocityVPN is a <strong className="text-white">management dashboard</strong>, not a VPN service. You need a real WireGuard provider for the tunnel to work. The configs generated here are templates — replace <code className="text-[#FBBF24] font-mono">YOUR_SERVER_IP</code> and <code className="text-[#FBBF24] font-mono">PublicKey</code> with your provider's details.</div>
+          <div className="text-xs text-[#9CA3AF] leading-relaxed">VelocityVPN is a <strong className="text-white">management dashboard</strong>, not a VPN service. You need a real WireGuard provider for the tunnel to work. The configs generated here are templates - replace <code className="text-[#FBBF24] font-mono">YOUR_SERVER_IP</code> and <code className="text-[#FBBF24] font-mono">PublicKey</code> with your provider's details.</div>
         </div>
 
         <h4 className="text-sm font-semibold text-white mb-3">Recommended: Mullvad</h4>
         <div className="space-y-3 mb-5">
           {[
-            { icon: <Globe size={16} />, text: "Go to ", link: "mullvad.net", url: "https://mullvad.net", desc: " — no email needed, accepts crypto/cash" },
+            { icon: <Globe size={16} />, text: "Go to ", link: "mullvad.net", url: "https://mullvad.net", desc: " - no email needed, accepts crypto/cash" },
             { icon: <Download size={16} />, text: "Install WireGuard app from ", link: "wireguard.com", url: "https://wireguard.com/install", desc: "" },
             { icon: <Key size={16} />, text: "In your Mullvad account, generate a WireGuard config for your chosen server location", link: "", url: "", desc: "" },
             { icon: <Smartphone size={16} />, text: "Download the .conf file or scan the QR code into the WireGuard app", link: "", url: "", desc: "" },
-            { icon: <Wifi size={16} />, text: "Toggle ON — your traffic is now encrypted and routed through Mullvad", link: "", url: "", desc: "" },
+            { icon: <Wifi size={16} />, text: "Toggle ON - your traffic is now encrypted and routed through Mullvad", link: "", url: "", desc: "" },
           ].map((step, i) => (
             <div key={i} className="flex gap-3">
               <div className="w-7 h-7 rounded-full bg-[rgba(232,93,78,0.1)] flex items-center justify-center shrink-0"><span className="text-[#E85D4E]">{step.icon}</span></div>
