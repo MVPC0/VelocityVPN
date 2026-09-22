@@ -12,10 +12,10 @@ const plans = [
       '18 server locations on dashboard',
       'Real-time ping testing',
       'Heat map with lobby vibes',
-      '24 game trackers',
+      'Steam player counts + Fortnite estimate',
       'IP & leak testing tools',
       'Unlimited configs',
-      'No ads, no tracking',
+      'No ads on the dashboard',
     ],
     popular: true,
   },
@@ -30,7 +30,7 @@ const plans = [
       'Connection analytics & history',
       'Advanced speed test graphs',
       'Custom config templates',
-      'Priority support',
+      'Priority support is not staffed yet',
       'Early access to new features',
     ],
     popular: false,
@@ -57,7 +57,7 @@ export default function Pricing() {
           <span className="text-eyebrow">PRICING</span>
           <h1 className="font-['Archivo'] text-white mt-4 text-5xl tracking-tight">VelocityVPN is Free</h1>
           <p className="mt-4 text-[#9CA3AF] max-w-lg mx-auto">
-            The dashboard is free forever. Bring your own VPN provider — free or paid, your choice.
+            The dashboard is free forever. Bring your own VPN provider - free or paid, your choice.
           </p>
         </div>
 
@@ -70,7 +70,7 @@ export default function Pricing() {
             <h3 className="text-sm font-semibold text-[#4ADE80]">Free VPN Providers Supported</h3>
             <p className="text-xs text-[#9CA3AF] mt-1">
               Use ProtonVPN, Windscribe (10GB), Hide.me (10GB), or PrivadoVPN (10GB) at zero cost. 
-              Or connect any paid provider — Mullvad, IVPN, NordVPN, etc.
+              Or connect any paid provider - Mullvad, IVPN, NordVPN, etc.
             </p>
           </div>
           <ArrowRight size={18} className="text-[#4ADE80] shrink-0" />
@@ -99,7 +99,7 @@ export default function Pricing() {
                   plan.popular ? 'bg-[#4ADE80] hover:bg-[#3ECF71] text-[#050507]' : 'bg-[#111118] border border-[rgba(255,255,255,0.15)] hover:border-[#9B6DFF] text-white'
                 } transition-all cursor-pointer`}
               >
-                {plan.name === 'Free' ? 'Get Started Free' : 'Go Premium'}
+                {plan.name === 'Free' ? 'Get Started Free' : 'Premium is not for sale yet'}
               </button>
 
               <ul className="mt-6 space-y-2">
@@ -137,11 +137,11 @@ export default function Pricing() {
           <h2 className="font-['Archivo'] text-2xl text-center mb-8">Questions</h2>
           <div className="space-y-4">
             {[
-              { q: 'Is VelocityVPN actually free?', a: 'Yes. The dashboard is 100% free. You bring your own VPN provider. Many excellent free providers are supported.' },
+              { q: 'Is VelocityVPN actually free?', a: 'Yes. The dashboard is free. You bring your own WireGuard provider. VelocityVPN does not sell VPN bandwidth.' },
               { q: 'Do I need to pay for a VPN provider?', a: 'No. ProtonVPN, Windscribe, Hide.me, and PrivadoVPN all offer free tiers that work perfectly with VelocityVPN.' },
               { q: 'What does the Premium plan add?', a: 'Premium supports development and unlocks analytics, advanced graphs, custom templates, and priority support. The core dashboard is fully free.' },
               { q: 'Will this work on my device?', a: 'Yes. The dashboard works in any browser. Generated configs import into WireGuard on Windows, macOS, Linux, iOS, Android, and routers.' },
-              { q: 'Do you log my activity?', a: 'No. We have no servers, no network, and no ability to log anything. Your traffic goes directly to your chosen provider.' },
+              { q: 'Do you log my activity?', a: 'This dashboard does not route your packets. Logging is up to the VPN provider you choose. Email signup, if enabled, stores an account on the app backend.' },
             ].map(({ q, a }) => (
               <div key={q} className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl p-5">
                 <h4 className="font-medium text-white text-sm mb-1">{q}</h4>
