@@ -1,6 +1,9 @@
-// ─── VelocityVPN Servers ──────────────────────────────────────
-// 18 global locations across 6 regions
-// Our own VPN infrastructure — no third-party provider needed
+// ─── Region labels ────────────────────────────────────────────
+// 18 cities used as dashboard labels for latency checks and
+// WireGuard *templates*. These hostnames are not live Velocity
+// VPN nodes. endpoint URLs are public websites for coarse
+// browser timing only. wgEndpoint values are public DNS IPs
+// used as placeholders - replace with a real provider endpoint.
 
 import { getServerKeyPair } from "../lib/wg-keygen";
 
@@ -19,7 +22,7 @@ export interface VelocityServer {
   lng: number;
 }
 
-// VelocityVPN — 18 global locations
+// VelocityVPN - 18 global locations
 export const VELOCITY_SERVERS: VelocityServer[] = [
   {
     id: 1, name: "US-West", city: "Los Angeles", country: "United States",
