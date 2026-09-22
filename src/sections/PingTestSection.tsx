@@ -297,13 +297,13 @@ const PingTestSection: React.FC = () => {
           ) : closestServer ? (
             <div className="inline-flex items-center gap-2 text-sm text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-4 py-2 rounded-full">
               <Zap size={14} />
-              Closest server: <strong>{closestServer.city}</strong> ({distance}mi away)
+              Closest city: <strong>{closestServer.city}</strong> ({distance}mi away)
               <span className="text-[#6B7280] ml-1">- auto-testing now</span>
             </div>
           ) : (
             <div className="text-sm text-[#6B7280]">
               <MapPin size={14} className="inline mr-1" />
-              Tap a server below to test your ping, or
+              Tap a city below to run a browser timing sample, or
               <button
                 onClick={() => detect()}
                 className="ml-1 text-[#E85D4E] hover:underline bg-transparent border-0 cursor-pointer"
@@ -373,7 +373,7 @@ const PingTestSection: React.FC = () => {
                       transform: 'translate(-50%, -50%)',
                     }}
                     onClick={() => runPingTest(server)}
-                    aria-label={`Test ping to ${server.name}`}
+                    aria-label={`Test timing near ${server.name}`}
                   >
                     <div className="w-10 h-10 md:w-6 md:h-6 flex items-center justify-center relative">
                       {closest && (
@@ -421,8 +421,8 @@ const PingTestSection: React.FC = () => {
                     <div className="text-4xl mb-3">🌐</div>
                     <p className="text-[#9CA3AF] text-sm leading-relaxed max-w-[280px] mx-auto">
                       {closestServer
-                        ? `Closest: ${closestServer.city} (${distance}mi) - tap a server or wait for auto-test`
-                        : 'Tap a server to test your ping'}
+                        ? `Closest: ${closestServer.city} (${distance}mi) - tap a city or wait for auto-test`
+                        : 'Tap a city to run a timing sample'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center">
@@ -485,7 +485,7 @@ const PingTestSection: React.FC = () => {
                   <div className="text-center">
                     {isClosest(selectedServer) && (
                       <div className="mb-3 inline-flex items-center gap-1 text-xs text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-3 py-1 rounded-full">
-                        <Zap size={12} /> Closest Server - {userCity}
+                        <Zap size={12} /> Closest City - {userCity}
                       </div>
                     )}
                     <div className="flex items-baseline justify-center">
@@ -499,7 +499,7 @@ const PingTestSection: React.FC = () => {
                     </div>
                     <div className="mt-8 space-y-3.5 text-left bg-[#111118] rounded-xl p-5 border border-[rgba(255,255,255,0.04)]">
                       <div className="flex justify-between items-center gap-3">
-                        <span className="text-[#6B7280] text-sm">Server</span>
+                        <span className="text-[#6B7280] text-sm">City</span>
                         <span className="text-white text-sm">{selectedServer.flag} {selectedServer.name}</span>
                       </div>
                       <div className="flex justify-between items-center gap-3">
