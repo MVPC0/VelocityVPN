@@ -9,9 +9,9 @@ const plans = [
     desc: 'Use with any free provider. No limits.',
     features: [
       'Works with free providers (ProtonVPN, Windscribe, Hide.me)',
-      '18 server locations on dashboard',
-      'Real-time ping testing',
-      'Heat map with lobby vibes',
+      '18 region labels for tests and templates',
+      'Browser region timing (not ICMP)',
+      'Region map with city labels',
       'Steam player counts + Fortnite estimate',
       'IP & leak testing tools',
       'Unlimited configs',
