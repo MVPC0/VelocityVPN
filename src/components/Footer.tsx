@@ -9,10 +9,6 @@ const footerColumns = [
     title: 'Honest limits',
     links: ['Not a VPN network', 'No support desk', 'Bring your provider'],
   },
-  {
-    title: 'Source',
-    links: ['github.com/MVPC0/VelocityVPN'],
-  },
 ];
 
 const Footer: React.FC = () => {
@@ -20,7 +16,7 @@ const Footer: React.FC = () => {
     <footer className="w-full bg-[#050507] border-t border-[rgba(255,255,255,0.08)]">
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12 pt-16 pb-8">
         {/* Top Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-10">
           {/* Logo Column */}
           <div className="col-span-2 md:col-span-1">
             <a
