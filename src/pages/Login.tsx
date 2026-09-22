@@ -102,7 +102,7 @@ export default function Login() {
               <span className="absolute -right-2.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#E85D4E]" />
             </span>
           </div>
-          <p className="mt-2 text-sm text-[#6B7280]">Game Without Limits</p>
+          <p className="mt-2 text-sm text-[#6B7280]">BYO WireGuard dashboard</p>
         </div>
 
         {/* Card */}
