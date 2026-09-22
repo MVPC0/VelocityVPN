@@ -19,7 +19,7 @@ export default function CTASection() {
             lineHeight: 0.9,
           }}
         >
-          Game Without Limits
+          Bring Your Own WireGuard
         </h2>
 
         <p className="mt-6 text-[#D1D5DB] max-w-[560px] mx-auto text-lg">
