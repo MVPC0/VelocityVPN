@@ -13,51 +13,51 @@ interface Testimonial {
 
 const testimonials: Testimonial[] = [
   {
-    quote: "My ping dropped from 85ms to 22ms on Valorant. I climbed from Gold to Diamond in two weeks. This is literally a competitive advantage.",
-    name: "Marcus Chen",
-    role: "Competitive FPS Player",
-    game: "Valorant / CS2",
-    initials: "MC",
+    quote: "VelocityVPN is a dashboard. It does not operate a VPN network, assign you an IP, or carry packets.",
+    name: "Product fact",
+    role: "What this is",
+    game: "Not a carrier",
+    initials: "PF",
     bgColor: "bg-[#1a3a5c]",
   },
   {
-    quote: "I stream tournaments and VelocityVPN's DDoS protection has saved my broadcast three times. No more getting knocked offline mid-match.",
-    name: "Sarah Williams",
-    role: "Twitch Streamer",
-    game: "League of Legends",
-    initials: "SW",
+    quote: "Ping numbers on the landing page time a public website in that city. They are not ICMP pings to a Velocity node or a game server.",
+    name: "Product fact",
+    role: "Latency checks",
+    game: "Browser timing",
+    initials: "LT",
     bgColor: "bg-[#3a1a3a]",
   },
   {
-    quote: "Playing on EU servers from the US used to be a nightmare. Now I get 45ms ping to Frankfurt. My squad doesn't even know I'm not local.",
-    name: "Alex Rivera",
-    role: "Battle Royale Player",
-    game: "Warzone / Apex",
-    initials: "AR",
+    quote: "Heat-map vibes (Bot Lobby through Sweaty) are a model from estimated load. They are not live matchmaking data.",
+    name: "Product fact",
+    role: "Heat map",
+    game: "Modeled, not live",
+    initials: "HM",
     bgColor: "bg-[#1a3a1a]",
   },
   {
-    quote: "The auto-optimization is magic. I don't touch any settings — it just works. Every game I play gets the best route automatically.",
-    name: "Jordan Park",
-    role: "Casual Gamer",
-    game: "Fortnite / Overwatch",
-    initials: "JP",
+    quote: "Steam counts come from Steam's public API when it responds. If it fails, the panel shows an estimate and should say so.",
+    name: "Product fact",
+    role: "Game trackers",
+    game: "Steam + estimates",
+    initials: "GT",
     bgColor: "bg-[#3a2a1a]",
   },
   {
-    quote: "As a pro player, every millisecond counts. VelocityVPN gives me the stable, low-latency connection I need for tournament practice.",
-    name: "Kim Nakamura",
-    role: "Esports Professional",
-    game: "Dota 2",
-    initials: "KN",
+    quote: "Kill switch, split tunnel, and DDoS protection - if you have them - come from your provider and the WireGuard app.",
+    name: "Product fact",
+    role: "Your provider",
+    game: "Not this site",
+    initials: "WG",
     bgColor: "bg-[#1a1a3a]",
   },
   {
-    quote: "Split tunneling is the feature I didn't know I needed. Game traffic goes through VPN, Discord stays local. Best of both worlds.",
-    name: "David Okafor",
-    role: "Content Creator",
-    game: "PUBG / Escape from Tarkov",
-    initials: "DO",
+    quote: "There is no 24/7 support desk and no paid network. Guest mode unlocks the dashboard. Premium checkout is not live.",
+    name: "Product fact",
+    role: "Pricing & support",
+    game: "Free tool",
+    initials: "FR",
     bgColor: "bg-[#2a1a3a]",
   },
 ];
@@ -107,8 +107,8 @@ const TestimonialsSection: React.FC = () => {
     >
       <div className="max-w-[1000px] mx-auto px-6 lg:px-12">
         <SectionHeader
-          eyebrow="REVIEWS"
-          title="What Gamers Say"
+          eyebrow="STRAIGHT TALK"
+          title="No fake reviews"
           centered
         />
 
