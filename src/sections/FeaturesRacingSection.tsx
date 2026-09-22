@@ -18,48 +18,48 @@ interface Feature {
 const features: Feature[] = [
   {
     icon: Shield,
-    title: 'Cloudflare Protected',
-    description: 'Cloudflare DDoS mitigation and bot protection. HTTPS enforced. Security headers on every request. Protected by enterprise-grade infrastructure.',
+    title: 'Not a VPN service',
+    description: 'VelocityVPN does not run VPN servers or carry your traffic. It is a dashboard. You bring a real WireGuard provider.',
     speed: 0.5,
     column: 1,
     floatDelay: 0,
   },
   {
     icon: Zap,
-    title: 'Zero Lag',
-    description: 'Gaming-optimized WireGuard protocol cuts latency. Real-time ping testing finds your fastest route every time.',
+    title: 'Region latency check',
+    description: 'Browser timing against public sites in a city. That is not ICMP ping and not a measurement of a VelocityVPN node.',
     speed: 1.0,
     column: 2,
     floatDelay: -1,
   },
   {
     icon: Globe,
-    title: 'Global Servers',
-    description: '18 global locations across 6 continents. Smart routing automatically finds the fastest path to your game server.',
+    title: '18 region labels',
+    description: 'Eighteen cities used as labels for tests and config templates. They are not Velocity-owned endpoints.',
     speed: 0.7,
     column: 3,
     floatDelay: -2,
   },
   {
     icon: GitBranch,
-    title: 'Split Tunneling',
-    description: 'Route only your game traffic through the VPN. Keep Discord, streaming, and browsing on your regular connection.',
+    title: 'Config templates',
+    description: 'Generate WireGuard keypairs and .conf files. Split tunneling, if you want it, is set in the official WireGuard app.',
     speed: 1.2,
     column: 1,
     floatDelay: -3,
   },
   {
     icon: Power,
-    title: 'Kill Switch',
-    description: 'If your VPN drops, your internet cuts instantly. No accidental IP exposure. No mid-match disconnections.',
+    title: 'Kill switch lives in WireGuard',
+    description: 'This site cannot cut your internet. Enable a kill switch in the WireGuard client on your device.',
     speed: 0.8,
     column: 2,
     floatDelay: -0.5,
   },
   {
     icon: Headphones,
-    title: '24/7 Support',
-    description: "Gaming doesn't stop, and neither do we. Our team of gamers is online around the clock to help you.",
+    title: 'Open source',
+    description: 'No 24/7 support team. Issues go on GitHub. Guest mode uses the dashboard with no account.',
     speed: 1.5,
     column: 3,
     floatDelay: -4,
@@ -127,7 +127,7 @@ const FeaturesRacingSection: React.FC = () => {
           <SectionHeader
             eyebrow="FEATURES"
             title="Built for Competitive Play"
-            subtitle="Every feature designed to give you the edge."
+            subtitle="What the dashboard actually does - and what it does not."
           />
         </div>
 
