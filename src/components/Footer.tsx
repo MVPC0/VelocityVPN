@@ -38,7 +38,7 @@ const Footer: React.FC = () => {
               </span>
             </a>
             <p className="mt-3 text-xs text-[#6B7280] uppercase tracking-wider">
-              Game Without Limits
+              BYO WireGuard dashboard
             </p>
             <div className="flex gap-4 mt-6">
               {/* Social icons */}
