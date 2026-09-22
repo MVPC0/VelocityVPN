@@ -1,10 +1,7 @@
 import { Shield, Wifi, Users } from 'lucide-react';
+import { Link } from 'react-router';
 
 export default function CTASection() {
-  const goToDashboard = () => {
-    window.location.hash = '/dashboard';
-  };
-
   return (
     <section
       id="cta"
@@ -30,13 +27,12 @@ export default function CTASection() {
         </p>
 
         <div className="mt-10">
-          <button
-            type="button"
-            onClick={goToDashboard}
-            className="inline-flex items-center justify-center px-12 py-5 bg-[#4ADE80] text-[#050507] rounded-lg text-sm font-bold uppercase tracking-[0.04em] hover:bg-[#3ECF71] transition-all cursor-pointer border-0"
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center justify-center px-12 py-5 bg-[#4ADE80] text-[#050507] rounded-lg text-sm font-bold uppercase tracking-[0.04em] hover:bg-[#3ECF71] transition-all cursor-pointer border-0 no-underline"
           >
             Get Started Free
-          </button>
+          </Link>
         </div>
 
         <div className="mt-12 flex flex-wrap justify-center gap-6 md:gap-12">

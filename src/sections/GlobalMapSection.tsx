@@ -3,32 +3,51 @@ import SectionHeader from '@/components/SectionHeader';
 import CountUp from 'react-countup';
 import { useInView } from '@/hooks/useInView';
 
+// 18 city labels - same set as PingTest (excluding Los Angeles to keep count at 18)
+const cities = [
+  { x: 0.22, y: 0.38, name: 'New York' },
+  { x: 0.47, y: 0.30, name: 'London' },
+  { x: 0.50, y: 0.32, name: 'Frankfurt' },
+  { x: 0.84, y: 0.38, name: 'Tokyo' },
+  { x: 0.76, y: 0.58, name: 'Singapore' },
+  { x: 0.87, y: 0.74, name: 'Sydney' },
+  { x: 0.30, y: 0.74, name: 'Sao Paulo' },
+  { x: 0.60, y: 0.47, name: 'Dubai' },
+  { x: 0.55, y: 0.22, name: 'Stockholm' },
+  { x: 0.18, y: 0.36, name: 'Chicago' },
+  { x: 0.24, y: 0.34, name: 'Toronto' },
+  { x: 0.48, y: 0.30, name: 'Amsterdam' },
+  { x: 0.46, y: 0.32, name: 'Paris' },
+  { x: 0.53, y: 0.28, name: 'Warsaw' },
+  { x: 0.66, y: 0.52, name: 'Mumbai' },
+  { x: 0.79, y: 0.48, name: 'Hong Kong' },
+  { x: 0.82, y: 0.36, name: 'Seoul' },
+  { x: 0.44, y: 0.36, name: 'Madrid' },
+];
+
 // Simplified world map dot positions (normalized 0-1)
-// This creates a recognizable world map silhouette
 function generateWorldDots(): Array<{ x: number; y: number; isCity: boolean; cityName?: string }> {
   const dots: Array<{ x: number; y: number; isCity: boolean; cityName?: string }> = [];
 
-  // Continent shapes using simple region definitions
   const regions = [
-    // North America
-    { x1: 0.12, y1: 0.15, x2: 0.35, y2: 0.55, density: 0.7 },
+    // North America - slightly denser
+    { x1: 0.12, y1: 0.15, x2: 0.35, y2: 0.55, density: 0.82 },
     // South America
-    { x1: 0.22, y1: 0.55, x2: 0.35, y2: 0.88, density: 0.6 },
+    { x1: 0.22, y1: 0.55, x2: 0.35, y2: 0.88, density: 0.68 },
     // Europe
-    { x1: 0.44, y1: 0.15, x2: 0.58, y2: 0.42, density: 0.8 },
+    { x1: 0.44, y1: 0.15, x2: 0.58, y2: 0.42, density: 0.88 },
     // Africa
-    { x1: 0.44, y1: 0.35, x2: 0.58, y2: 0.78, density: 0.5 },
+    { x1: 0.44, y1: 0.35, x2: 0.58, y2: 0.78, density: 0.58 },
     // Asia
-    { x1: 0.55, y1: 0.12, x2: 0.88, y2: 0.58, density: 0.7 },
+    { x1: 0.55, y1: 0.12, x2: 0.88, y2: 0.58, density: 0.8 },
     // Australia
-    { x1: 0.75, y1: 0.65, x2: 0.90, y2: 0.85, density: 0.5 },
+    { x1: 0.75, y1: 0.65, x2: 0.90, y2: 0.85, density: 0.58 },
   ];
 
-  const step = 0.018;
+  const step = 0.014;
   for (const region of regions) {
     for (let x = region.x1; x < region.x2; x += step) {
       for (let y = region.y1; y < region.y2; y += step) {
-        // Create rough continent edges with noise
         const edgeNoise = 0.03;
         const dx = (x - region.x1) / (region.x2 - region.x1);
         const dy = (y - region.y1) / (region.y2 - region.y1);
@@ -46,18 +65,6 @@ function generateWorldDots(): Array<{ x: number; y: number; isCity: boolean; cit
     }
   }
 
-  // Server cities
-  const cities = [
-    { x: 0.25, y: 0.35, name: 'New York' },
-    { x: 0.48, y: 0.30, name: 'London' },
-    { x: 0.51, y: 0.32, name: 'Frankfurt' },
-    { x: 0.85, y: 0.35, name: 'Tokyo' },
-    { x: 0.75, y: 0.55, name: 'Singapore' },
-    { x: 0.88, y: 0.72, name: 'Sydney' },
-    { x: 0.30, y: 0.72, name: 'Sao Paulo' },
-    { x: 0.60, y: 0.45, name: 'Dubai' },
-  ];
-
   for (const city of cities) {
     dots.push({ x: city.x, y: city.y, isCity: true, cityName: city.name });
   }
@@ -73,20 +80,10 @@ interface Arc {
   alpha: number;
 }
 
-const cities = [
-  { x: 0.25, y: 0.35, name: 'New York' },
-  { x: 0.48, y: 0.30, name: 'London' },
-  { x: 0.51, y: 0.32, name: 'Frankfurt' },
-  { x: 0.85, y: 0.35, name: 'Tokyo' },
-  { x: 0.75, y: 0.55, name: 'Singapore' },
-  { x: 0.88, y: 0.72, name: 'Sydney' },
-  { x: 0.30, y: 0.72, name: 'Sao Paulo' },
-  { x: 0.60, y: 0.45, name: 'Dubai' },
-];
-
 const GlobalMapSection: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { ref: sectionRef, isInView } = useInView(0.1);
+  const { ref: statsRef } = useInView(0.3);
   const dotsRef = useRef(generateWorldDots());
   const arcsRef = useRef<Arc[]>([]);
   const animFrameRef = useRef(0);
@@ -99,12 +96,12 @@ const GlobalMapSection: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (!w || !h) return;
 
     ctx.clearRect(0, 0, w, h);
 
-    // Draw dots with reveal animation
     const dots = dotsRef.current;
     const revealProgress = revealProgressRef.current;
 
@@ -117,18 +114,17 @@ const GlobalMapSection: React.FC = () => {
       const py = dot.y * h;
 
       if (dot.isCity) {
-        // City dot with pulse
+        // Coral city dots (#E85D4E)
         const pulseScale = 1 + Math.sin(Date.now() * 0.003 + i) * 0.3;
         ctx.beginPath();
         ctx.arc(px, py, 4 * pulseScale * dotReveal, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${dotReveal})`;
+        ctx.fillStyle = `rgba(232, 93, 78, ${dotReveal})`;
         ctx.fill();
 
-        // Pulse ring
         const ringAlpha = (1 - pulseScale + 1) * 0.3 * dotReveal;
         ctx.beginPath();
         ctx.arc(px, py, 8 * pulseScale, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255, 255, 255, ${ringAlpha})`;
+        ctx.strokeStyle = `rgba(232, 93, 78, ${ringAlpha})`;
         ctx.lineWidth = 1;
         ctx.stroke();
       } else {
@@ -139,7 +135,6 @@ const GlobalMapSection: React.FC = () => {
       }
     }
 
-    // Draw arcs
     if (streamsActiveRef.current) {
       const arcs = arcsRef.current;
       for (let i = arcs.length - 1; i >= 0; i--) {
@@ -159,11 +154,9 @@ const GlobalMapSection: React.FC = () => {
         const tx = arc.to.x * w;
         const ty = arc.to.y * h;
 
-        // Control point for quadratic bezier (arch upward)
         const cx = (fx + tx) / 2;
         const cy = Math.min(fy, ty) - Math.abs(tx - fx) * 0.15;
 
-        // Draw arc path
         ctx.beginPath();
         ctx.moveTo(fx, fy);
         ctx.quadraticCurveTo(cx, cy, tx, ty);
@@ -171,7 +164,6 @@ const GlobalMapSection: React.FC = () => {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Traveling dot
         if (arc.progress < 1) {
           const t = arc.progress;
           const invT = 1 - t;
@@ -183,7 +175,6 @@ const GlobalMapSection: React.FC = () => {
           ctx.fillStyle = `rgba(232, 93, 78, ${arc.alpha})`;
           ctx.fill();
 
-          // Glow
           ctx.beginPath();
           ctx.arc(dotX, dotY, 8, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(232, 93, 78, ${0.15 * arc.alpha})`;
@@ -207,7 +198,8 @@ const GlobalMapSection: React.FC = () => {
       canvas.style.width = rect.width + 'px';
       canvas.style.height = rect.height + 'px';
       const ctx = canvas.getContext('2d');
-      if (ctx) ctx.scale(dpr, dpr);
+      // Reset transform instead of stacking scale on every resize
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
     resize();
@@ -216,7 +208,6 @@ const GlobalMapSection: React.FC = () => {
     const animate = () => {
       animFrameRef.current = requestAnimationFrame(animate);
 
-      // Update reveal progress
       if (isInView && revealProgressRef.current < 1) {
         revealProgressRef.current += 0.003;
         if (revealProgressRef.current >= 1) {
@@ -227,7 +218,6 @@ const GlobalMapSection: React.FC = () => {
         }
       }
 
-      // Spawn new arcs
       if (streamsActiveRef.current && Math.random() < 0.02 && arcsRef.current.length < 12) {
         const from = cities[Math.floor(Math.random() * cities.length)];
         let to = cities[Math.floor(Math.random() * cities.length)];
@@ -277,20 +267,18 @@ const GlobalMapSection: React.FC = () => {
           subtitle="City labels for latency checks and config templates. VelocityVPN does not operate these as VPN nodes."
         />
 
-        {/* Map Canvas */}
         <div className="mt-16 relative w-full aspect-[16/9] max-w-[1200px] mx-auto">
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full"
           />
-          {/* City Labels */}
           {cities.map((city) => (
             <div
               key={city.name}
-              className="absolute font-['JetBrains_Mono'] text-[10px] text-[#6B7280] whitespace-nowrap pointer-events-none"
+              className="absolute font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF] whitespace-nowrap pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
               style={{
                 left: `${city.x * 100}%`,
-                top: `${city.y * 100 + 3}%`,
+                top: `${city.y * 100 + 2.5}%`,
                 transform: 'translateX(-50%)',
               }}
             >
@@ -299,9 +287,8 @@ const GlobalMapSection: React.FC = () => {
           ))}
         </div>
 
-        {/* Stats Bar */}
         <div
-          ref={useInView(0.3).ref}
+          ref={statsRef}
           className="mt-12 flex flex-wrap justify-center gap-8 md:gap-16"
         >
           {stats.map((stat) => (
