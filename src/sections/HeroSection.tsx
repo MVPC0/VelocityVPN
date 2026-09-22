@@ -259,7 +259,7 @@ const HeroSection: React.FC = () => {
     globeRef.current = points;
     scene.add(points);
 
-    // Soft atmosphere shell â€” same rotation, matches site coral rim
+    // Soft atmosphere shell - same rotation, matches site coral rim
     const atmosGeo = new THREE.SphereGeometry(1.04, 48, 48);
     const atmosMat = new THREE.MeshBasicMaterial({
       color: 0xE85D4E,
@@ -431,7 +431,7 @@ const HeroSection: React.FC = () => {
       />
 
       <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] px-6">
-        <span className="text-eyebrow mb-6">DASHBOARD â€” NOT A CARRIER</span>
+        <span className="text-eyebrow mb-6">DASHBOARD - NOT A CARRIER</span>
 
         <h1
           className="font-['Archivo'] text-white text-center font-normal"
@@ -449,7 +449,7 @@ const HeroSection: React.FC = () => {
           className="mt-6 text-[#D1D5DB] text-center max-w-[560px]"
           style={{ fontSize: 'clamp(16px, 1.8vw, 20px)', lineHeight: 1.6 }}
         >
-          A free WireGuard dashboard â€” not a VPN network. Eighteen city labels, config templates,
+          A free WireGuard dashboard - not a VPN network. Eighteen city labels, config templates,
           and region timing checks. You bring the provider.
         </p>
 
