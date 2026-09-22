@@ -35,8 +35,8 @@ const GamesSection: React.FC = () => {
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <SectionHeader
           eyebrow="SUPPORTED GAMES"
-          title="Play Every Game, Everywhere"
-          subtitle="Optimized routing for the games you love. Join players in any region."
+          title="Games people use this with"
+          subtitle="Titles people use this dashboard with. Routing is done by your VPN provider, not by VelocityVPN."
         />
 
         <div
