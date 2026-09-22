@@ -113,7 +113,7 @@ const PingTestSection: React.FC = () => {
   const timeoutsRef = useRef<number[]>([]);
   const hasAutoRun = useRef(false);
 
-  // Auto-run ping for closest server — robust with ref guard
+  // Auto-run ping for closest server - robust with ref guard
   useEffect(() => {
     if (!closestServer || hasAutoRun.current) return;
     if (state !== 'idle' || selectedServer !== null) return;
@@ -270,7 +270,7 @@ const PingTestSection: React.FC = () => {
         <SectionHeader
           eyebrow="PING TEST"
           title="Test Your Connection"
-          subtitle="We auto-detect your location and find the closest server for the best ping."
+          subtitle="Times a public website near that city in your browser. Not ICMP. Not a VelocityVPN node. Not a game server."
         />
 
         {/* Location detection status */}
@@ -284,7 +284,7 @@ const PingTestSection: React.FC = () => {
             <div className="inline-flex items-center gap-2 text-sm text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-4 py-2 rounded-full">
               <Zap size={14} />
               Closest server: <strong>{closestServer.city}</strong> ({distance}mi away)
-              <span className="text-[#6B7280] ml-1">— auto-testing now</span>
+              <span className="text-[#6B7280] ml-1">- auto-testing now</span>
             </div>
           ) : (
             <div className="text-sm text-[#6B7280]">
@@ -398,7 +398,7 @@ const PingTestSection: React.FC = () => {
                     <div className="text-4xl mb-3">🌐</div>
                     <p className="text-[#9CA3AF]">
                       {closestServer
-                        ? `Closest: ${closestServer.city} (${distance}mi) — tap a server or wait for auto-test`
+                        ? `Closest: ${closestServer.city} (${distance}mi) - tap a server or wait for auto-test`
                         : 'Tap a server to test your ping'}
                     </p>
                   </div>
@@ -462,7 +462,7 @@ const PingTestSection: React.FC = () => {
                   <div className="text-center">
                     {isClosest(selectedServer) && (
                       <div className="mb-2 inline-flex items-center gap-1 text-xs text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-3 py-1 rounded-full">
-                        <Zap size={12} /> Closest Server — {userCity}
+                        <Zap size={12} /> Closest Server - {userCity}
                       </div>
                     )}
                     <div className="flex items-baseline justify-center">
