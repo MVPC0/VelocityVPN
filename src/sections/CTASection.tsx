@@ -26,7 +26,7 @@ export default function CTASection() {
         </h2>
 
         <p className="mt-6 text-[#D1D5DB] max-w-[560px] mx-auto text-lg">
-          VelocityVPN is free forever. Bring your own VPN provider and start gaming with zero lag.
+          The dashboard is free. Bring your own WireGuard provider. This site does not lower ping by itself.
         </p>
 
         <div className="mt-10">
@@ -41,9 +41,9 @@ export default function CTASection() {
 
         <div className="mt-12 flex flex-wrap justify-center gap-6 md:gap-12">
           {[
-            { icon: Shield, text: 'Zero Logs Policy' },
-            { icon: Wifi, text: 'Works with Free VPNs' },
-            { icon: Users, text: 'All Features Unlocked' },
+            { icon: Shield, text: 'We do not route traffic' },
+            { icon: Wifi, text: 'Works with your provider' },
+            { icon: Users, text: 'Guest mode, no paywall' },
           ].map((badge) => (
             <div key={badge.text} className="flex items-center gap-2 text-[#6B7280]">
               <badge.icon size={16} className="text-[#4ADE80]" />
