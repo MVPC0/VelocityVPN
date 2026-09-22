@@ -255,7 +255,7 @@ const GlobalMapSection: React.FC = () => {
   }, [isInView, draw]);
 
   const stats = [
-    { value: 18, suffix: '', label: 'Global Locations', color: 'text-[#9B6DFF]' },
+    { value: 18, suffix: '', label: 'City labels', color: 'text-[#9B6DFF]' },
     { value: 6, suffix: '', label: 'Continents', color: 'text-[#A3B8D4]' },
     { value: 25, suffix: '', label: 'Game Titles', color: 'text-[#E85D4E]' },
     { value: 7, suffix: '', label: 'VPN Providers', color: 'text-[#4ADE80]' },
@@ -273,8 +273,8 @@ const GlobalMapSection: React.FC = () => {
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <SectionHeader
           eyebrow="GLOBAL NETWORK"
-          title="18 Locations, One Goal"
-          subtitle="Gaming-optimized servers on every continent. Smart routing finds the fastest path, every time."
+          title="18 cities on the map"
+          subtitle="City labels for latency checks and config templates. VelocityVPN does not operate these as VPN nodes."
         />
 
         {/* Map Canvas */}
