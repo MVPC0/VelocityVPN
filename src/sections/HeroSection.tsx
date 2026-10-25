@@ -450,8 +450,8 @@ const HeroSection: React.FC = () => {
           className="mt-6 text-[#D1D5DB] text-center max-w-[560px]"
           style={{ fontSize: 'clamp(16px, 1.8vw, 20px)', lineHeight: 1.6 }}
         >
-          A free WireGuard dashboard - not a VPN network. Eighteen city labels, config templates,
-          and region timing checks. You bring the provider.
+          A free WireGuard dashboard - not a VPN network. Eighteen reference cities for timing checks,
+          and configs built from your own provider's details. You bring the provider.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 mt-10">

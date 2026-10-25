@@ -6,21 +6,28 @@ import {
   Flame, Globe, Lock, Gamepad2, ScanLine,
   HelpCircle, Puzzle, Key, LogIn, X,
   Smartphone, Wifi, AlertTriangle, CheckCircle2,
-  Check, Loader2
+  Check, Loader2, Info
 } from "lucide-react";
-import { VELOCITY_SERVERS, generateWireGuardConfig, getFlag } from "@/data/velocity-servers";
-import { generateWireGuardPrivateKey, isValidWireGuardKey } from "@/lib/wg-keygen";
+import { VELOCITY_SERVERS, getFlag } from "@/data/velocity-servers";
 import SteamGamesPanel from "@/components/SteamGamesPanel";
 import ServerHeatMap from "@/components/ServerHeatMap";
 import ProviderSetup from "@/components/ProviderSetup";
-import { useProviderConfig, generateProviderWireGuardConfig } from "@/hooks/useProviderConfig";
+import {
+  useProviderConfig,
+  generateProviderWireGuardConfig,
+  providerConfigFilename,
+  isProviderConfigComplete,
+  type ProviderConfig,
+} from "@/hooks/useProviderConfig";
 import { useVpnDetector } from "@/hooks/useVpnDetector";
 
 // ─── Types ────────────────────────────────────────────────────
 
+// A reference location used for browser latency timing and the heat map.
+// These are not VelocityVPN servers; tunnels use the user's own provider.
 interface VPNServer {
   id: number; name: string; city: string; country: string;
-  countryCode: string; region: string; hostname: string;
+  countryCode: string; region: string; hostname: string; endpoint: string;
   load: number; ping: number | null; jitter: number | null;
   protocol: string;
 }
@@ -30,32 +37,18 @@ interface Connection {
 }
 
 interface SessionRecord {
-  server: VPNServer; duration: number; bytesSent: number;
-  bytesReceived: number; date: Date; status: string;
+  server: VPNServer; duration: number; date: Date; status: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-// Real server public keys must be provided by the operator, e.g.
-// VITE_WG_SERVER_PUBLIC_KEYS='{"usw-001.velocityvpn.io":"<base64 key>"}'
-function getConfiguredServerPublicKey(hostname: string): string | null {
-  try {
-    const raw = import.meta.env.VITE_WG_SERVER_PUBLIC_KEYS as string | undefined;
-    if (!raw) return null;
-    const map = JSON.parse(raw) as Record<string, unknown>;
-    const key = map[hostname];
-    return typeof key === "string" && isValidWireGuardKey(key) ? key.trim() : null;
-  } catch {
-    return null;
-  }
-}
-
 const INITIAL_SERVERS: VPNServer[] = VELOCITY_SERVERS.map((s) => ({
   id: s.id, name: s.name, city: s.city, country: s.country,
-  countryCode: s.countryCode, region: s.region, hostname: s.hostname,
+  countryCode: s.countryCode, region: s.region, hostname: s.hostname, endpoint: s.endpoint,
+  // Modelled "lobby vibe" for the heat map only; not a measurement.
   load: Math.floor(Math.random() * 35) + 15,
-  ping: Math.floor(Math.random() * 60) + 15,
-  jitter: Math.floor(Math.random() * 6) + 1,
+  ping: null,
+  jitter: null,
   protocol: "wireguard",
 }));
 
@@ -63,11 +56,32 @@ function formatDuration(s: number) {
   const m = Math.floor(s / 60), h = Math.floor(m / 60);
   return h > 0 ? `${h}h ${m % 60}m ${s % 60}s` : `${m}m ${s % 60}s`;
 }
-function formatBytes(b: number) {
-  if (b < 1024) return `${b} B`;
-  if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
-  if (b < 1073741824) return `${(b / 1048576).toFixed(1)} MB`;
-  return `${(b / 1073741824).toFixed(2)} GB`;
+// Traffic flows through the WireGuard app, not this page, so bytes aren't tracked here.
+const NOT_TRACKED = "—";
+
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Rough browser timing to a public site near the city (not ICMP, not a VPN hop).
+async function timeFetch(url: string): Promise<number | null> {
+  const start = performance.now();
+  try {
+    await fetch(`${url}${url.includes("?") ? "&" : "/?"}t=${Date.now()}`, {
+      method: "HEAD", mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(5000),
+    });
+    return Math.round(performance.now() - start);
+  } catch {
+    return null;
+  }
 }
 
 // ─── Dashboard Component ──────────────────────────────────────
@@ -81,15 +95,16 @@ export default function Dashboard() {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [activeTab, setActiveTab] = useState<"servers" | "heat" | "stats" | "history" | "games" | "tools" | "providers">("servers");
-  const { activeProvider, providers } = useProviderConfig();
+  const providerState = useProviderConfig();
+  const { activeProvider, providers } = providerState;
+  const providerReady = isProviderConfigComplete(activeProvider);
   const vpnDetector = useVpnDetector();
-  const [showQR, setShowQR] = useState<number | null>(null);
+  const [showQR, setShowQR] = useState(false);
   const [showHowTo, setShowHowTo] = useState(false);
   const [showProviderRequired, setShowProviderRequired] = useState(false);
-  const [generatedKey, setGeneratedKey] = useState("");
   const [isPingingAll, setIsPingingAll] = useState(false);
   const [history, setHistory] = useState<SessionRecord[]>([]);
-  const [stats, setStats] = useState({ totalSessions: 0, totalDuration: 0, totalDataSent: 0, totalDataReceived: 0 });
+  const [stats, setStats] = useState({ totalSessions: 0, totalDuration: 0 });
 
   // Auto-select first server
   useEffect(() => {
@@ -109,8 +124,8 @@ export default function Dashboard() {
 
   const handleConnect = useCallback(() => {
     if (!selectedServerId) return;
-    // Block connection if no real provider is configured
-    if (!activeProvider) {
+    // A session needs the user's own provider details (peer key + endpoint)
+    if (!isProviderConfigComplete(activeProvider)) {
       setShowProviderRequired(true);
       return;
     }
@@ -131,7 +146,6 @@ export default function Dashboard() {
           connectedAt: new Date(),
           protocol: server.protocol,
         });
-        setServers((prev) => prev.map((s) => s.id === server.id ? { ...s, load: Math.min(100, s.load + 4) } : s));
       })
       .catch(() => {
         // UI session only. This does not create a WireGuard tunnel.
@@ -141,7 +155,6 @@ export default function Dashboard() {
           connectedAt: new Date(),
           protocol: server.protocol,
         });
-        setServers((prev) => prev.map((s) => s.id === server.id ? { ...s, load: Math.min(100, s.load + 4) } : s));
       })
       .finally(() => {
         setIsConnecting(false);
@@ -153,69 +166,42 @@ export default function Dashboard() {
     setIsDisconnecting(true);
     setTimeout(() => {
       const dur = elapsed;
-      const up = Math.floor(Math.random() * 400000000) + 1000000;
-      const down = Math.floor(Math.random() * 1800000000) + 5000000;
-      setHistory((prev) => [{ server: connection.server, duration: dur, bytesSent: up, bytesReceived: down, date: new Date(), status: "disconnected" }, ...prev]);
-      setStats((p) => ({ totalSessions: p.totalSessions + 1, totalDuration: p.totalDuration + dur, totalDataSent: p.totalDataSent + up, totalDataReceived: p.totalDataReceived + down }));
-      setServers((prev) => prev.map((s) => s.id === connection.server.id ? { ...s, load: Math.max(0, s.load - 4) } : s));
+      setHistory((prev) => [{ server: connection.server, duration: dur, date: new Date(), status: "disconnected" }, ...prev]);
+      setStats((p) => ({ totalSessions: p.totalSessions + 1, totalDuration: p.totalDuration + dur }));
       setConnection(null);
       setIsDisconnecting(false);
     }, 600);
   }, [connection, elapsed]);
 
-  const testAll = useCallback(() => {
+  const testAll = useCallback(async () => {
     setIsPingingAll(true);
-    const tests = servers.map((s, i) =>
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          setServers((prev) => prev.map((sv) =>
-            sv.id === s.id ? { ...sv, ping: Math.floor(Math.random() * 80) + 15, jitter: Math.floor(Math.random() * 8) + 1 } : sv
-          ));
-          resolve();
-        }, i * 80)
-      )
-    );
-    Promise.all(tests).then(() => setIsPingingAll(false));
+    await Promise.all(servers.map(async (s) => {
+      const a = await timeFetch(s.endpoint);
+      const b = await timeFetch(s.endpoint);
+      const samples = [a, b].filter((v): v is number => v !== null);
+      const ping = samples.length ? Math.min(...samples) : null;
+      const jitter = samples.length === 2 ? Math.abs(samples[0] - samples[1]) : null;
+      setServers((prev) => prev.map((sv) => (sv.id === s.id ? { ...sv, ping, jitter } : sv)));
+    }));
+    setIsPingingAll(false);
   }, [servers]);
 
+  // Config + QR come only from the user's own provider entry.
   const downloadWireGuardConfig = useCallback(() => {
-    if (!connection) return;
-    // Use active provider config if available - this creates a REAL working config
-    if (activeProvider) {
-      const config = generateProviderWireGuardConfig(activeProvider);
-      const blob = new Blob([config], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${activeProvider.provider}-${activeProvider.city.toLowerCase().replace(/\s/g, "-")}.conf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setGeneratedKey(activeProvider.clientPrivateKey);
-      return;
-    }
-    // Fallback: template config (needs manual editing) - only with a real server public key
-    const vServer = VELOCITY_SERVERS.find((s) => s.id === connection.server.id);
-    if (!vServer) return;
-    const serverPublicKey = getConfiguredServerPublicKey(vServer.hostname);
-    if (!serverPublicKey) {
+    if (!isProviderConfigComplete(activeProvider)) {
       setShowProviderRequired(true);
       return;
     }
-    const key = generateWireGuardPrivateKey();
-    const config = generateWireGuardConfig(vServer, key, connection.assignedIp + "/32", serverPublicKey);
-    const blob = new Blob([config], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `velocity-${connection.server.city.toLowerCase().replace(/\s/g, "-")}.conf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    setGeneratedKey(key);
-  }, [connection, activeProvider, setShowProviderRequired]);
+    downloadText(providerConfigFilename(activeProvider), generateProviderWireGuardConfig(activeProvider));
+  }, [activeProvider]);
+
+  const openQR = useCallback(() => {
+    if (!isProviderConfigComplete(activeProvider)) {
+      setShowProviderRequired(true);
+      return;
+    }
+    setShowQR(true);
+  }, [activeProvider]);
 
   return (
     <div className="min-h-screen bg-[#050507] text-white">
@@ -280,11 +266,9 @@ export default function Dashboard() {
                     ? activeProvider
                       ? `${activeProvider.name} - ${formatDuration(elapsed)}`
                       : `${connection.server.city} - ${formatDuration(elapsed)}`
-                    : selectedServerId
-                    ? activeProvider
-                      ? `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected - Click Connect`
-                      : `${servers.find((s) => s.id === selectedServerId)?.city ?? ""} selected - Provider required`
-                    : "Select a server below to connect"}
+                    : providerReady
+                    ? `${activeProvider.name} ready - download the config or scan the QR into WireGuard`
+                    : "Add your provider's WireGuard details to get a config"}
                 </p>
               </div>
             </div>
@@ -312,18 +296,22 @@ export default function Dashboard() {
                   <Zap size={16} /> {isDisconnecting ? "Disconnecting..." : "Disconnect"}
                 </button>
               )}
-              {connection && (
+              <button onClick={() => setShowHowTo(true)} className="hidden sm:flex px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#9CA3AF] rounded-lg text-xs items-center gap-2 cursor-pointer hover:border-[#9B6DFF]">
+                <HelpCircle size={14} /> How to Connect
+              </button>
+              {providerReady ? (
                 <>
-                  <button onClick={() => setShowHowTo(true)} className="hidden sm:flex px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#9CA3AF] rounded-lg text-xs items-center gap-2 cursor-pointer hover:border-[#9B6DFF]">
-                    <HelpCircle size={14} /> How to Connect
-                  </button>
-                  <button onClick={() => setShowQR(connection.server.id)} className="hidden sm:flex px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#A3B8D4] rounded-lg text-xs items-center gap-2 cursor-pointer hover:border-[#A3B8D4]">
+                  <button onClick={openQR} className="hidden sm:flex px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#A3B8D4] rounded-lg text-xs items-center gap-2 cursor-pointer hover:border-[#A3B8D4]">
                     <ScanLine size={14} /> QR
                   </button>
                   <button onClick={downloadWireGuardConfig} className="hidden sm:flex px-5 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#4ADE80] rounded-lg text-xs items-center gap-2 cursor-pointer hover:border-[#4ADE80]">
                     <Download size={14} /> Config
                   </button>
                 </>
+              ) : (
+                <button onClick={() => setActiveTab("providers")} className="flex px-4 py-2.5 bg-[#111118] border border-[rgba(163,184,212,0.3)] text-[#A3B8D4] rounded-lg text-xs items-center gap-2 cursor-pointer hover:border-[#A3B8D4]">
+                  <Key size={14} /> Add your provider's WireGuard details
+                </button>
               )}
             </div>
           </div>
@@ -346,15 +334,15 @@ export default function Dashboard() {
                 </div>
               )}
               {!activeProvider && providers.length > 0 && (
-                <div className="bg-[rgba(251,191,36,0.05)] border border-[rgba(251,191,36,0.15)] rounded-xl p-3 mb-3 flex items-center gap-3">
-                  <AlertTriangle size={16} className="text-[#FBBF24] shrink-0" />
+                <div className="bg-[rgba(163,184,212,0.05)] border border-[rgba(163,184,212,0.15)] rounded-xl p-3 mb-3 flex items-center gap-3">
+                  <Info size={16} className="text-[#A3B8D4] shrink-0" />
                   <div className="text-xs text-[#9CA3AF]">Go to the <button onClick={() => setActiveTab("providers")} className="text-[#FBBF24] hover:underline cursor-pointer bg-transparent border-0 p-0 font-medium">Providers</button> tab to activate a config.</div>
                 </div>
               )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><Clock size={10} /> Duration</div><div className="font-['JetBrains_Mono'] text-base text-white">{formatDuration(elapsed)}</div></div>
-                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><ArrowDown size={10} /> Download</div><div className="font-['JetBrains_Mono'] text-base text-[#4ADE80]">{formatBytes(elapsed * 51200)}</div></div>
-                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><ArrowUp size={10} /> Upload</div><div className="font-['JetBrains_Mono'] text-base text-[#A3B8D4]">{formatBytes(elapsed * 12288)}</div></div>
+                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><ArrowDown size={10} /> Download</div><div className="font-['JetBrains_Mono'] text-base text-[#4ADE80]" title="Traffic goes through the WireGuard app, not this page">{NOT_TRACKED}</div></div>
+                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><ArrowUp size={10} /> Upload</div><div className="font-['JetBrains_Mono'] text-base text-[#A3B8D4]" title="Traffic goes through the WireGuard app, not this page">{NOT_TRACKED}</div></div>
                 <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><Activity size={10} /> Protocol</div><div className="font-['JetBrains_Mono'] text-base text-white uppercase">{connection.protocol}</div></div>
               </div>
             </div>
@@ -366,7 +354,7 @@ export default function Dashboard() {
           {(["servers", "heat", "stats", "history", "games", "tools", "providers"] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-[#E85D4E] text-white" : "text-[#9CA3AF] hover:text-white"} flex items-center gap-1.5 shrink-0`}>
-              {tab === "servers" ? <><Server size={13} /> Servers</> : tab === "heat" ? <><Flame size={13} /> Heat Map</> : tab === "stats" ? <><Activity size={13} /> Stats</> : tab === "history" ? <><Clock size={13} /> History</> : tab === "games" ? <><Gamepad2 size={13} /> Games</> : tab === "providers" ? <><Globe size={13} /> Providers</> : <><ScanLine size={13} /> Tools</>}
+              {tab === "servers" ? <><Server size={13} /> Locations</> : tab === "heat" ? <><Flame size={13} /> Heat Map</> : tab === "stats" ? <><Activity size={13} /> Stats</> : tab === "history" ? <><Clock size={13} /> History</> : tab === "games" ? <><Gamepad2 size={13} /> Games</> : tab === "providers" ? <><Globe size={13} /> Providers</> : <><ScanLine size={13} /> Tools</>}
             </button>
           ))}
         </div>
@@ -375,7 +363,10 @@ export default function Dashboard() {
         {activeTab === "servers" && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-['Archivo'] text-lg tracking-tight">Server Locations ({servers.length})</h3>
+              <div>
+                <h3 className="font-['Archivo'] text-lg tracking-tight">Ping Reference Locations ({servers.length})</h3>
+                <p className="text-xs text-[#6B7280] mt-0.5">Browser timing to public sites near each city - a rough region hint. These aren't VelocityVPN servers; your tunnel uses your provider's endpoint.</p>
+              </div>
               <button onClick={testAll} disabled={isPingingAll}
                 className="flex items-center gap-1.5 text-sm text-[#E85D4E] hover:text-white transition-colors disabled:opacity-50 cursor-pointer bg-transparent border-0">
                 <RefreshCw size={13} className={isPingingAll ? "animate-spin" : ""} /> {isPingingAll ? "Testing..." : "Test All"}
@@ -403,12 +394,6 @@ export default function Dashboard() {
                         ) : <div className="text-xs text-[#6B7280]">-- ms</div>}
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-[#111118] rounded-full overflow-hidden">
-                        <div className="h-full bg-[#E85D4E] rounded-full transition-all" style={{ width: `${server.load}%` }} />
-                      </div>
-                      <span className="text-[10px] text-[#6B7280] w-8 text-right">{server.load}%</span>
-                    </div>
                   </div>
                 );
               })}
@@ -433,11 +418,13 @@ export default function Dashboard() {
               </div>
               <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><ArrowDown size={10} /> Received</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-[#4ADE80]">{formatBytes(stats.totalDataReceived + (connection ? elapsed * 51200 : 0))}</div>
+                <div className="font-['JetBrains_Mono'] text-2xl text-[#4ADE80]">{NOT_TRACKED}</div>
+                <div className="text-[10px] text-[#6B7280] mt-1">See the WireGuard app</div>
               </div>
               <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><ArrowUp size={10} /> Sent</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-[#A3B8D4]">{formatBytes(stats.totalDataSent + (connection ? elapsed * 12288 : 0))}</div>
+                <div className="font-['JetBrains_Mono'] text-2xl text-[#A3B8D4]">{NOT_TRACKED}</div>
+                <div className="text-[10px] text-[#6B7280] mt-1">See the WireGuard app</div>
               </div>
             </div>
             {connection && (
@@ -447,7 +434,7 @@ export default function Dashboard() {
               </div>
             )}
             <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
-              <h3 className="font-['Archivo'] text-base tracking-tight mb-3">Server Status Overview</h3>
+              <h3 className="font-['Archivo'] text-base tracking-tight mb-3">Reference Location Latency</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {servers.map((s) => (
                   <div key={s.id} className="bg-[#111118] rounded-lg p-2.5">
@@ -455,12 +442,7 @@ export default function Dashboard() {
                       <span className="text-sm">{getFlag(s.countryCode)}</span>
                       <span className="text-xs text-white font-medium">{s.city}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-[#1a1a24] rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${s.load}%`, backgroundColor: s.load > 80 ? "#EF4444" : s.load > 50 ? "#FBBF24" : "#4ADE80" }} />
-                      </div>
-                      <span className="text-[10px] text-[#6B7280]">{s.load}%</span>
-                    </div>
+                    <div className="font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF]">{s.ping !== null ? `${s.ping} ms` : "-- ms"}</div>
                   </div>
                 ))}
               </div>
@@ -490,7 +472,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-[#4ADE80]">{formatDuration(h.duration)}</div>
-                      <div className="text-[10px] text-[#6B7280]">DL {formatBytes(h.bytesReceived)} / UL {formatBytes(h.bytesSent)}</div>
+                      <div className="text-[10px] text-[#6B7280]">Dashboard session</div>
                     </div>
                   </div>
                 ))}
@@ -503,57 +485,32 @@ export default function Dashboard() {
         {activeTab === "games" && <SteamGamesPanel />}
 
         {/* Tools Tab */}
-        {activeTab === "tools" && <ToolsTab downloadWireGuardConfig={downloadWireGuardConfig} connection={connection} setShowQR={setShowQR} setShowHowTo={setShowHowTo} vpnDetector={vpnDetector} />}
+        {activeTab === "tools" && <ToolsTab downloadWireGuardConfig={downloadWireGuardConfig} openQR={openQR} providerReady={providerReady} goToProviders={() => setActiveTab("providers")} setShowHowTo={setShowHowTo} vpnDetector={vpnDetector} />}
 
         {/* Providers Tab */}
-        {activeTab === "providers" && <ProviderSetup />}
+        {activeTab === "providers" && <ProviderSetup state={providerState} />}
       </div>
 
       {/* Modals */}
-      {showQR && <WireGuardQR serverId={showQR} onClose={() => setShowQR(null)} />}
+      {showQR && providerReady && <WireGuardQR provider={activeProvider} onClose={() => setShowQR(false)} onEdit={() => { setShowQR(false); setActiveTab("providers"); }} />}
       {showHowTo && <HowToConnectModal onClose={() => setShowHowTo(false)} />}
-      {generatedKey && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm" onClick={() => setGeneratedKey("")}>
-          <div className="bg-[#0A0A0F] border border-[rgba(74,222,128,0.2)] rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-[rgba(74,222,128,0.1)] flex items-center justify-center"><Key size={20} className="text-[#4ADE80]" /></div>
-              <div><h3 className="font-['Archivo'] text-base tracking-tight text-[#4ADE80]">Config Generated</h3><p className="text-xs text-[#6B7280]">Your WireGuard private key</p></div>
-            </div>
-            <div className="bg-[#111118] rounded-xl p-4 mb-4">
-              <div className="text-[10px] text-[#6B7280] uppercase tracking-wider mb-1">Private Key (save this!)</div>
-              <div className="font-['JetBrains_Mono'] text-xs text-[#4ADE80] break-all select-all">{generatedKey}</div>
-            </div>
-            <div className="bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.25)] rounded-xl p-4 mb-4 flex gap-3">
-              <AlertTriangle size={18} className="text-[#FBBF24] shrink-0 mt-0.5" />
-              <div>
-                <div className="text-xs font-semibold text-[#FBBF24] mb-1">Action Required</div>
-                <div className="text-[11px] text-[#9CA3AF] leading-relaxed">Open the downloaded .conf file and replace <code className="text-[#FBBF24] font-mono">YOUR_SERVER_IP</code> with your actual WireGuard server IP. Without a real endpoint, the tunnel will NOT connect.</div>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => navigator.clipboard.writeText(generatedKey)} className="flex-1 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-white rounded-lg text-xs font-medium cursor-pointer hover:border-[#4ADE80]">Copy Key</button>
-              <button onClick={() => setGeneratedKey("")} className="flex-1 py-2.5 bg-[#4ADE80] text-[#050507] rounded-lg text-xs font-bold cursor-pointer border-0 hover:bg-[#3ECF71]">Done</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Provider Required Modal */}
       {showProviderRequired && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm" onClick={() => setShowProviderRequired(false)}>
-          <div className="bg-[#0A0A0F] border border-[rgba(239,68,68,0.3)] rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[#0A0A0F] border border-[rgba(163,184,212,0.25)] rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-[rgba(239,68,68,0.1)] flex items-center justify-center">
-                <Lock size={24} className="text-[#EF4444]" />
+              <div className="w-12 h-12 rounded-full bg-[rgba(163,184,212,0.1)] flex items-center justify-center">
+                <Key size={24} className="text-[#A3B8D4]" />
               </div>
               <div>
-                <h3 className="font-['Archivo'] text-base tracking-tight text-[#EF4444]">Provider Required</h3>
-                <p className="text-xs text-[#6B7280]">A real WireGuard config is needed</p>
+                <h3 className="font-['Archivo'] text-base tracking-tight text-white">Add your provider's WireGuard details</h3>
+                <p className="text-xs text-[#6B7280]">One quick step, then your config and QR are ready</p>
               </div>
             </div>
-            <div className="bg-[rgba(251,191,36,0.05)] border border-[rgba(251,191,36,0.15)] rounded-xl p-4 mb-5">
+            <div className="bg-[rgba(163,184,212,0.05)] border border-[rgba(163,184,212,0.15)] rounded-xl p-4 mb-5">
               <p className="text-xs text-[#9CA3AF] leading-relaxed">
-                VelocityVPN cannot create a working VPN tunnel without a real WireGuard server. You need to add a provider config with your actual server endpoint, public key, and private key.
+                VelocityVPN doesn't run VPN servers - you bring your own WireGuard provider. Import the .conf your provider gives you (or enter its endpoint and server public key) and we'll build the config and QR code from it, right in your browser.
               </p>
             </div>
             <div className="space-y-2 mb-5">
@@ -561,18 +518,18 @@ export default function Dashboard() {
                 <Check size={14} className="text-[#4ADE80]" /> Go to the <strong className="text-white">Providers</strong> tab
               </div>
               <div className="flex items-center gap-2 text-xs text-[#9CA3AF]">
-                <Check size={14} className="text-[#4ADE80]" /> Select your VPN provider (Mullvad, ProtonVPN, etc.)
+                <Check size={14} className="text-[#4ADE80]" /> Pick your provider (Mullvad, ProtonVPN, your own server...)
               </div>
               <div className="flex items-center gap-2 text-xs text-[#9CA3AF]">
-                <Check size={14} className="text-[#4ADE80]" /> Paste your server details and save
+                <Check size={14} className="text-[#4ADE80]" /> Import or paste your .conf, then save
               </div>
               <div className="flex items-center gap-2 text-xs text-[#9CA3AF]">
-                <Check size={14} className="text-[#4ADE80]" /> Activate the config, then connect
+                <Check size={14} className="text-[#4ADE80]" /> Download the config or scan the QR in WireGuard
               </div>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowProviderRequired(false)} className="flex-1 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-white rounded-lg text-xs font-medium cursor-pointer hover:border-[#E85D4E]">
-                Cancel
+                Not now
               </button>
               <button onClick={() => { setShowProviderRequired(false); setActiveTab("providers"); }} className="flex-1 py-2.5 bg-[#E85D4E] text-white rounded-lg text-xs font-bold cursor-pointer border-0 hover:bg-[#D44A3C]">
                 Go to Providers
@@ -587,10 +544,11 @@ export default function Dashboard() {
 
 // ─── Tools Tab Component ──────────────────────────────────────
 
-function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo, vpnDetector }: {
+function ToolsTab({ downloadWireGuardConfig, openQR, providerReady, goToProviders, setShowHowTo, vpnDetector }: {
   downloadWireGuardConfig: () => void;
-  connection: Connection | null;
-  setShowQR: (id: number | null) => void;
+  openQR: () => void;
+  providerReady: boolean;
+  goToProviders: () => void;
   setShowHowTo: (v: boolean) => void;
   vpnDetector: ReturnType<typeof useVpnDetector>;
 }) {
@@ -633,14 +591,15 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-[rgba(74,222,128,0.1)] flex items-center justify-center shrink-0"><Puzzle size={20} className="text-[#4ADE80]" /></div>
           <div className="flex-1">
-            <h3 className="text-sm font-bold text-white mb-1">Chrome Extension VPN</h3>
-            <p className="text-xs text-[#9CA3AF] mb-3">Install our free Chrome extension for <strong className="text-white">automatic VPN protection</strong> on all websites.</p>
+            <h3 className="text-sm font-bold text-white mb-1">Chrome Extension (Proxy)</h3>
+            <p className="text-xs text-[#9CA3AF] mb-3">Free Chrome extension that routes <strong className="text-white">browser traffic</strong> through a proxy server <strong className="text-white">you provide</strong>. It doesn't include a proxy and isn't WireGuard.</p>
             <ol className="text-xs text-[#9CA3AF] space-y-1 mb-3 list-decimal list-inside">
               <li>Download the extension ZIP below</li>
               <li>Extract to a folder</li>
               <li>Go to <code className="text-[#E85D4E]">chrome://extensions</code></li>
               <li>Enable <strong className="text-white">Developer mode</strong></li>
               <li>Click <strong className="text-white">Load unpacked</strong> and select the folder</li>
+              <li>Open the extension and enter your proxy's host and port</li>
             </ol>
             <a href="/extension/velocityvpn-extension.zip" download className="inline-flex items-center gap-2 px-4 py-2 bg-[#4ADE80] text-[#050507] rounded-lg text-xs font-bold hover:bg-[#3ECF71] transition-all no-underline">
               <Download size={14} /> Download Extension
@@ -729,14 +688,14 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
               {isProtected ? <Wifi size={12} className="text-[#4ADE80] mt-0.5 shrink-0" /> : needsBaseline ? <AlertTriangle size={12} className="text-[#FBBF24] mt-0.5 shrink-0" /> : <Lock size={12} className="text-[#4ADE80] mt-0.5 shrink-0" />}
               <div>
                 <span className={`text-xs font-medium ${isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#4ADE80]"}`}>
-                  {isProtected ? "WireGuard VPN Detected - IP changed from baseline" : needsBaseline ? "Step 1: Set your home IP with VPN off" : "Zero Logs Policy"}
+                  {isProtected ? "WireGuard VPN Detected - IP changed from baseline" : needsBaseline ? "Step 1: Set your home IP with VPN off" : "Your details stay in your browser"}
                 </span>
                 <p className="text-[10px] text-[#6B7280]">
                   {isProtected
                     ? `IP changed from ${vpnDetector.homeIp} → ${vpnDetector.currentIp}. Auto-checking every 15 seconds.`
                     : needsBaseline
                     ? "After setting home IP, turn WireGuard ON. The dashboard will auto-detect the change."
-                    : "We don't store connection logs, traffic logs, or DNS queries."}
+                    : "VelocityVPN doesn't carry your traffic. Provider details stay in this browser; private keys only for the session."}
                 </p>
               </div>
             </div>
@@ -764,78 +723,71 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
       </div>
 
       {/* Quick Actions */}
-      {connection && (
-        <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
-          <h3 className="font-['Archivo'] text-base tracking-tight mb-3">Quick Actions</h3>
+      <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
+        <h3 className="font-['Archivo'] text-base tracking-tight mb-3">Quick Actions</h3>
+        {providerReady ? (
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => setShowQR(connection.server.id)} className="px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-white rounded-lg text-xs cursor-pointer hover:border-[#A3B8D4]"><ScanLine size={14} className="inline mr-1" /> Show QR</button>
+            <button onClick={openQR} className="px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-white rounded-lg text-xs cursor-pointer hover:border-[#A3B8D4]"><ScanLine size={14} className="inline mr-1" /> Show QR</button>
             <button onClick={downloadWireGuardConfig} className="px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#4ADE80] rounded-lg text-xs cursor-pointer hover:border-[#4ADE80]"><Download size={14} className="inline mr-1" /> Download Config</button>
             <button onClick={() => setShowHowTo(true)} className="px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#9B6DFF] rounded-lg text-xs cursor-pointer hover:border-[#9B6DFF]"><HelpCircle size={14} className="inline mr-1" /> How to Connect</button>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs text-[#9CA3AF] flex-1 min-w-[200px]">Add your provider's WireGuard details to download a config or show a QR code.</p>
+            <button onClick={goToProviders} className="px-4 py-2.5 bg-[#111118] border border-[rgba(163,184,212,0.3)] text-[#A3B8D4] rounded-lg text-xs cursor-pointer hover:border-[#A3B8D4]"><Key size={14} className="inline mr-1" /> Add provider details</button>
+            <button onClick={() => setShowHowTo(true)} className="px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#9B6DFF] rounded-lg text-xs cursor-pointer hover:border-[#9B6DFF]"><HelpCircle size={14} className="inline mr-1" /> How to Connect</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── WireGuard QR Modal ───────────────────────────────────────
 
-function WireGuardQR({ serverId, onClose }: { serverId: number; onClose: () => void }) {
-  const server = VELOCITY_SERVERS.find((s) => s.id === serverId);
-  const serverPublicKey = server ? getConfiguredServerPublicKey(server.hostname) : null;
+function WireGuardQR({ provider, onClose, onEdit }: { provider: ProviderConfig; onClose: () => void; onEdit: () => void }) {
   const [qrUrl, setQrUrl] = useState("");
-  const [key, setKey] = useState("");
+  const hasPrivateKey = !!provider.clientPrivateKey;
+  const config = generateProviderWireGuardConfig(provider);
 
   useEffect(() => {
-    if (!server || !serverPublicKey) return;
-    const k = generateWireGuardPrivateKey();
-    setKey(k);
-    const config = generateWireGuardConfig(server, k, "10.0.0.2/32", serverPublicKey);
+    if (!hasPrivateKey) return;
+    let cancelled = false;
     import("qrcode").then((QR) => {
       QR.default.toDataURL(config, { width: 280, margin: 2, color: { dark: "#ffffff", light: "#0A0A0F" } })
-        .then((url: string) => setQrUrl(url)).catch(() => {});
+        .then((url: string) => { if (!cancelled) setQrUrl(url); }).catch(() => {});
     }).catch(() => {});
-  }, [serverId, server, serverPublicKey]);
-
-  if (!server) return null;
-
-  if (!serverPublicKey) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.1)] rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-['Archivo'] text-base tracking-tight">WireGuard Config</h3>
-            <button onClick={onClose} className="text-[#6B7280] hover:text-white cursor-pointer bg-transparent border-0"><X size={18} /></button>
-          </div>
-          <div className="bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.2)] rounded-xl p-4 flex gap-3">
-            <AlertTriangle size={18} className="text-[#FBBF24] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#9CA3AF] leading-relaxed">No server public key is configured for {server.city}. Add your WireGuard provider config to generate a working QR code.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    return () => { cancelled = true; };
+  }, [config, hasPrivateKey]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm" onClick={onClose}>
       <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.1)] rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-['Archivo'] text-base tracking-tight">WireGuard Config</h3>
+          <div className="min-w-0">
+            <h3 className="font-['Archivo'] text-base tracking-tight">WireGuard Config</h3>
+            <p className="text-[11px] text-[#6B7280] truncate">{provider.name} — {provider.wgEndpoint}</p>
+          </div>
           <button onClick={onClose} className="text-[#6B7280] hover:text-white cursor-pointer bg-transparent border-0"><X size={18} /></button>
         </div>
-        {key && <div className="bg-[rgba(74,222,128,0.05)] border border-[rgba(74,222,128,0.15)] rounded-xl p-3 mb-4"><div className="text-[10px] text-[#4ADE80] uppercase mb-1">Private Key</div><div className="font-['JetBrains_Mono'] text-[10px] text-[#4ADE80] break-all">{key}</div></div>}
-        <div className="bg-[#111118] rounded-xl p-4 flex items-center justify-center mb-4">
-          {qrUrl ? <img src={qrUrl} alt="QR" className="w-56 h-56" /> : <Loader2 size={32} className="animate-spin text-[#E85D4E]" />}
-        </div>
-        <button onClick={() => {
-          if (!key) return;
-          const config = generateWireGuardConfig(server, key, "10.0.0.2/32", serverPublicKey);
-          const blob = new Blob([config], { type: "text/plain" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a"); a.href = url;
-          a.download = `velocity-${server.city.toLowerCase().replace(/\s/g, "-")}.conf`;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-        }} className="w-full py-2.5 bg-[#E85D4E] text-white rounded-lg text-xs font-medium cursor-pointer border-0 hover:bg-[#D44A3C]"><Download size={14} className="inline mr-1" /> Download Config</button>
+        {hasPrivateKey ? (
+          <>
+            <div className="bg-[#111118] rounded-xl p-4 flex items-center justify-center mb-2">
+              {qrUrl ? <img src={qrUrl} alt="WireGuard config QR code" className="w-56 h-56" /> : <Loader2 size={32} className="animate-spin text-[#E85D4E]" />}
+            </div>
+            <p className="text-[10px] text-[#6B7280] mb-4 text-center">Scan with the WireGuard app: Add tunnel → Scan from QR code. Contains your private key, so don't share it.</p>
+          </>
+        ) : (
+          <div className="bg-[rgba(163,184,212,0.06)] border border-[rgba(163,184,212,0.2)] rounded-xl p-4 mb-4 flex gap-3">
+            <Info size={18} className="text-[#A3B8D4] shrink-0 mt-0.5" />
+            <p className="text-xs text-[#9CA3AF] leading-relaxed">
+              Add your private key to show a scannable QR. It's kept only for this browser session.{" "}
+              <button onClick={onEdit} className="text-[#E85D4E] hover:underline bg-transparent border-0 p-0 cursor-pointer text-xs">Open Providers</button>
+            </p>
+          </div>
+        )}
+        <button onClick={() => downloadText(providerConfigFilename(provider), config)}
+          className="w-full py-2.5 bg-[#E85D4E] text-white rounded-lg text-xs font-medium cursor-pointer border-0 hover:bg-[#D44A3C]"><Download size={14} className="inline mr-1" /> Download Config</button>
       </div>
     </div>
   );
@@ -856,7 +808,7 @@ function HowToConnectModal({ onClose }: { onClose: () => void }) {
 
         <div className="bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.2)] rounded-xl p-4 mb-5 flex gap-3">
           <AlertTriangle size={18} className="text-[#FBBF24] shrink-0 mt-0.5" />
-          <div className="text-xs text-[#9CA3AF] leading-relaxed">VelocityVPN is a <strong className="text-white">management dashboard</strong>, not a VPN service. You need a real WireGuard provider for the tunnel to work. The configs generated here are templates - replace <code className="text-[#FBBF24] font-mono">YOUR_SERVER_IP</code> and <code className="text-[#FBBF24] font-mono">PublicKey</code> with your provider's details.</div>
+          <div className="text-xs text-[#9CA3AF] leading-relaxed">VelocityVPN is a <strong className="text-white">management dashboard</strong>, not a VPN service. Bring a WireGuard provider, then import its .conf in the <strong className="text-white">Providers</strong> tab - the config download and QR code are built from your provider's details.</div>
         </div>
 
         <h4 className="text-sm font-semibold text-white mb-3">Recommended: Mullvad</h4>
@@ -865,7 +817,7 @@ function HowToConnectModal({ onClose }: { onClose: () => void }) {
             { icon: <Globe size={16} />, text: "Go to ", link: "mullvad.net", url: "https://mullvad.net", desc: " - no email needed, accepts crypto/cash" },
             { icon: <Download size={16} />, text: "Install WireGuard app from ", link: "wireguard.com", url: "https://wireguard.com/install", desc: "" },
             { icon: <Key size={16} />, text: "In your Mullvad account, generate a WireGuard config for your chosen server location", link: "", url: "", desc: "" },
-            { icon: <Smartphone size={16} />, text: "Download the .conf file or scan the QR code into the WireGuard app", link: "", url: "", desc: "" },
+            { icon: <Smartphone size={16} />, text: "Import that .conf in the Providers tab here, then download it or scan the QR code into the WireGuard app", link: "", url: "", desc: "" },
             { icon: <Wifi size={16} />, text: "Toggle ON - your traffic is now encrypted and routed through Mullvad", link: "", url: "", desc: "" },
           ].map((step, i) => (
             <div key={i} className="flex gap-3">

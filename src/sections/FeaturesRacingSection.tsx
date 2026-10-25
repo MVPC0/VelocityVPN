@@ -35,15 +35,15 @@ const features: Feature[] = [
   {
     icon: Globe,
     title: '18 region labels',
-    description: 'Eighteen cities used as labels for tests and config templates. They are not Velocity-owned endpoints.',
+    description: 'Eighteen cities used as reference labels for latency tests. They are not Velocity-owned endpoints.',
     speed: 0.7,
     column: 3,
     floatDelay: -2,
   },
   {
     icon: GitBranch,
-    title: 'Config templates',
-    description: 'Generate WireGuard keypairs and .conf files. Split tunneling, if you want it, is set in the official WireGuard app.',
+    title: 'Provider configs',
+    description: 'Import or paste your provider\'s .conf, then download it or scan a QR. Split tunneling, if you want it, is set in the official WireGuard app.',
     speed: 1.2,
     column: 1,
     floatDelay: -3,

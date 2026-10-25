@@ -153,7 +153,7 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#4ADE80] opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#4ADE80]" />
               </span>
-              Average load: <span className="text-white font-bold">{avgLoad}%</span> — {servers.length} servers live
+              Simulated lobby activity: <span className="text-white font-bold">{avgLoad}%</span> — {servers.length} reference regions (not VPN servers)
               <span className="text-[10px] text-[#4B5563]">Updated {new Date(lastUpdate).toLocaleTimeString()}</span>
             </p>
           </div>
@@ -185,7 +185,7 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
             <Globe size={14} className="text-[#6B7280]" />
             <h4 className="text-sm font-bold text-[#9CA3AF] uppercase tracking-wider">{REGION_LABELS[region] || region}</h4>
             <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
-            <span className="text-xs text-[#6B7280]">{regionServers.length} servers</span>
+            <span className="text-xs text-[#6B7280]">{regionServers.length} {regionServers.length === 1 ? "city" : "cities"}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

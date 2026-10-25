@@ -27,7 +27,8 @@ export function generateWireGuardPrivateKey(): string {
   return bufferToBase64(nacl.randomBytes(32));
 }
 
-// Derive public key from private key (for server keys)
+// Derive the public key for the user's own client private key
+// (so they can register it with their provider). Never used for server keys.
 export function derivePublicKey(privateKeyBase64: string): string {
   try {
     const privateKey = base64ToBuffer(privateKeyBase64);
@@ -42,7 +43,13 @@ export function derivePublicKey(privateKeyBase64: string): string {
 export const WG_KEY_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
 export function isValidWireGuardKey(key: string): boolean {
-  return WG_KEY_PATTERN.test(key.trim());
+  const k = key.trim();
+  if (!WG_KEY_PATTERN.test(k)) return false;
+  try {
+    return base64ToBuffer(k).length === 32;
+  } catch {
+    return false;
+  }
 }
 
 // Server public keys must come from the real WireGuard server (`wg show <if> public-key`).

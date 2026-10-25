@@ -7,9 +7,9 @@ gsap.registerPlugin(ScrollTrigger);
 
 const steps = [
   { num: '01', title: 'Open dashboard', desc: 'This site is a manager, not a tunnel. Nothing is encrypted until you import a config into the WireGuard app.', icon: '🖥️' },
-  { num: '02', title: 'Pick a region', desc: 'Eighteen city labels for tests and templates. They are not Velocity-owned VPN servers.', icon: '🌐' },
-  { num: '03', title: 'Add a provider', desc: 'Paste endpoint, public key, and private key from Proton, Windscribe, Mullvad, or any WireGuard host.', icon: '🔑' },
-  { num: '04', title: 'Download .conf', desc: 'Generate a Curve25519 keypair and an import-ready WireGuard file. Endpoint must be a real provider address.', icon: '📄' },
+  { num: '02', title: 'Pick a region', desc: 'Eighteen reference cities for latency tests. They are not Velocity-owned VPN servers.', icon: '🌐' },
+  { num: '03', title: 'Add a provider', desc: 'Import or paste the .conf from Proton, Windscribe, Mullvad, or any WireGuard host.', icon: '🔑' },
+  { num: '04', title: 'Download .conf', desc: 'Get an import-ready WireGuard file or QR built from your provider\'s details. Nothing is invented.', icon: '📄' },
   { num: '05', title: 'Import WireGuard', desc: 'Open the official WireGuard app on your device. This website cannot hide your IP by itself.', icon: '🛡️' },
   { num: '06', title: 'Check latency', desc: 'Browser timing to a public site in that city. Not ICMP. Not a game-server ping. A rough region hint.', icon: '📶' },
   { num: '07', title: 'Track games', desc: 'Steam player counts when the public API answers. Fortnite is an estimate. Heat-map vibes are a model, not live lobbies.', icon: '🎮' },

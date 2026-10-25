@@ -262,9 +262,9 @@ const GlobalMapSection: React.FC = () => {
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <SectionHeader
-          eyebrow="GLOBAL NETWORK"
+          eyebrow="REFERENCE REGIONS"
           title="18 cities on the map"
-          subtitle="City labels for latency checks and config templates. VelocityVPN does not operate these as VPN nodes."
+          subtitle="City labels for latency checks. VelocityVPN does not operate these as VPN nodes - your tunnel uses your provider's servers."
         />
 
         <div className="mt-16 relative w-full aspect-[16/9] max-w-[1200px] mx-auto">
