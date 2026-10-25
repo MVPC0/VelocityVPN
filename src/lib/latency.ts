@@ -7,7 +7,8 @@
 //     reuses one keep-alive connection. The first request opens DNS +
 //     TCP + TLS and is dropped.
 //   - Each request is cache-busted (unique `?t=`) and `cache: 'no-store'`.
-//   - Each sample is wall-clock time from fetch() to response headers.
+//   - Each sample is wall-clock time from fetch() to response headers,
+//     timed in a Web Worker when available (see sampleRequest).
 //     (Neither provider sends Timing-Allow-Origin, so Resource Timing
 //     can't break it down further; using one clock for both keeps
 //     providers comparable.)
@@ -16,6 +17,8 @@
 // This is HTTP round-trip time from the browser, not ICMP ping.
 
 import { cityLatencyTargets, latencyTargetLabel, type LatencyTarget } from '@/data/ping-targets';
+import { timedFetch, type Sample } from './timed-fetch';
+import type { WorkerRequest, WorkerResponse } from './latency.worker';
 
 export const TOTAL_REQUESTS = 10;
 export const DROPPED_REQUESTS = 1;
@@ -28,6 +31,78 @@ export const TARGET_TIMEOUT_MS = 20000;
 const SAMPLE_GAP_MS = 60;
 /** No HTTPS round trip to a cloud region from a browser is this fast; it means a cache or a block. */
 export const MIN_PLAUSIBLE_MS = 1;
+
+// ─── Speed-of-light floor ─────────────────────────────────────
+// Light in optical fibre travels at ~c/1.47 ≈ 204,000 km/s, i.e. ~200 km
+// per ms one way. A round trip over great-circle distance d therefore
+// can't take less than 2·d / 200 km/ms = d / 100 ms (≈ 1 ms per 100 km of
+// distance; real routes are longer, so real RTTs sit well above this).
+// Any sample below PHYSICS_FLOOR_FACTOR × floor is rejected as impossible
+// (a cache, a nearby interceptor, or a wrong location estimate).
+/** One-way signal speed in fibre, km per millisecond. */
+export const FIBER_KM_PER_MS = 200;
+/** Samples below this fraction of the physics floor are rejected. */
+export const PHYSICS_FLOOR_FACTOR = 0.9;
+/** IP geolocation can be off by hundreds of km (mobile carriers often geolocate to a regional hub), so subtract this from the distance first; it only makes the floor more lenient. */
+export const GEO_SLACK_KM = 500;
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+/** Great-circle (haversine) distance in km. */
+export function greatCircleKm(a: GeoPoint, b: GeoPoint): number {
+  const R = 6371;
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLng = (b.lng - a.lng) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Minimum physically possible RTT (ms) from `from` to `to`; 0 when the visitor location is unknown. */
+export function physicsFloorMs(from: GeoPoint | null | undefined, to: GeoPoint): number {
+  if (!from) return 0;
+  const km = Math.max(0, greatCircleKm(from, to) - GEO_SLACK_KM);
+  return (2 * km) / FIBER_KM_PER_MS;
+}
+
+/** Fastest sample we accept for a target with the given physics floor. */
+export function minAcceptableMs(floorMs: number): number {
+  return Math.max(MIN_PLAUSIBLE_MS, PHYSICS_FLOOR_FACTOR * floorMs);
+}
+
+// ─── Timer resolution / spread display ────────────────────────
+
+let timerRes: number | null = null;
+
+/** Observed performance.now() granularity in ms (Chrome ~0.1, Firefox/Safari ~1). */
+export function timerResolutionMs(): number {
+  if (timerRes !== null) return timerRes;
+  let best = Infinity;
+  for (let k = 0; k < 10; k++) {
+    const a = performance.now();
+    let b = a;
+    let n = 0;
+    while ((b = performance.now()) === a && n++ < 1e6) { /* spin until the clock ticks */ }
+    if (b > a) best = Math.min(best, b - a);
+  }
+  timerRes = Number.isFinite(best) ? best : 1;
+  return timerRes;
+}
+
+export const MAD_EXPLANATION = '± is median absolute deviation (typical spread around the median), not standard deviation.';
+
+/**
+ * Spread text: `± 3.2 ms`, or `< 1 ms` when it's below what the headline
+ * (whole ms) and the browser's timer can resolve.
+ */
+export function formatSpread(mad: number, resolutionMs: number = timerResolutionMs()): string {
+  const floor = Math.max(1, resolutionMs);
+  if (mad < floor) return `< ${Math.round(floor)} ms`;
+  return `± ${mad} ms`;
+}
 
 export interface LatencyStats {
   /** Median of kept samples (ms, rounded). */
@@ -75,6 +150,8 @@ export interface MeasureProgress {
 
 export interface MeasureOptions {
   signal?: AbortSignal;
+  /** Visitor's approximate location, for the speed-of-light floor. */
+  from?: GeoPoint | null;
   onProgress?: (p: MeasureProgress) => void;
 }
 
@@ -93,24 +170,31 @@ export function medianAbsoluteDeviation(values: number[]): number {
   return median(values.map((v) => Math.abs(v - m)));
 }
 
-/** Per-request outcome. `ms` is null when the request failed. */
-export interface Sample {
-  ms: number | null;
-  error?: string;
-}
+export type { Sample, SampleFailure } from './timed-fetch';
 
 /**
  * Turn raw samples (first one already dropped) into stats, or a failure
  * reason when the data can't be trusted at all.
  */
-export function assessSamples(samples: Sample[]): { stats: LatencyStats | null; failure: string | null; inconsistent: boolean } {
+export function assessSamples(
+  samples: Sample[],
+  floorMs = 0,
+): { stats: LatencyStats | null; failure: string | null; inconsistent: boolean } {
   const attempted = samples.length;
+  const minOk = minAcceptableMs(floorMs);
   const errors = samples.filter((s) => s.ms === null);
-  const tooFast = samples.filter((s) => s.ms !== null && s.ms < MIN_PLAUSIBLE_MS).length;
-  const good = samples.map((s) => s.ms).filter((ms): ms is number => ms !== null && ms >= MIN_PLAUSIBLE_MS);
+  const tooFast = samples.filter((s) => s.ms !== null && s.ms < minOk);
+  const good = samples.map((s) => s.ms).filter((ms): ms is number => ms !== null && ms >= minOk);
 
-  if (tooFast > attempted / 2) {
-    return { stats: null, failure: 'implausibly fast responses (cached or blocked)', inconsistent: false };
+  if (tooFast.length > attempted / 2) {
+    const subMs = tooFast.filter((s) => (s.ms as number) < MIN_PLAUSIBLE_MS).length;
+    return {
+      stats: null,
+      failure: subMs > attempted / 2
+        ? 'implausibly fast responses (cached or blocked)'
+        : `faster than physically possible from your approximate location (floor ${Math.round(floorMs)} ms)`,
+      inconsistent: false,
+    };
   }
   if (good.length < MIN_OK_SAMPLES) {
     const why = errors.find((e) => e.error)?.error ?? 'no response';
@@ -138,34 +222,67 @@ function bustedUrl(target: LatencyTarget): string {
   return `${target.url}?t=${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** One cache-busted GET; wall-clock ms to response headers. Never rejects. */
-export async function timeRequest(target: LatencyTarget, signal?: AbortSignal): Promise<Sample> {
-  const controller = new AbortController();
-  const onAbort = () => controller.abort();
-  signal?.addEventListener('abort', onAbort);
-  const timer = setTimeout(() => controller.abort(), SAMPLE_TIMEOUT_MS);
-  const start = performance.now();
+/**
+ * One cache-busted GET on the calling thread; wall-clock ms to response
+ * headers. Never rejects. See `timedFetch` for how failures and HTTP
+ * statuses are classified.
+ */
+export function timeRequest(
+  target: LatencyTarget,
+  signal?: AbortSignal,
+  timeoutMs: number = SAMPLE_TIMEOUT_MS,
+): Promise<Sample> {
+  return timedFetch(bustedUrl(target), target.mode, signal, timeoutMs);
+}
+
+// ─── Off-main-thread timing ───────────────────────────────────
+// A busy main thread (WebGL, animations) delays when a fetch() promise is
+// noticed, which inflates samples by up to a frame (measured: +60 ms in
+// headless Chromium with software WebGL). A dedicated worker has its own
+// event loop, so samples are timed there when Workers are available;
+// otherwise (old browsers, CSP refusal, tests) we fall back to the main thread.
+
+let worker: Worker | null = null;
+let workerBroken = typeof Worker === 'undefined';
+let nextId = 1;
+const pending = new Map<number, (s: Sample | null) => void>();
+
+function getWorker(): Worker | null {
+  if (workerBroken) return null;
+  if (worker) return worker;
   try {
-    const res = await fetch(bustedUrl(target), {
-      cache: 'no-store',
-      mode: target.mode,
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
-      signal: controller.signal,
-    });
-    const ms = performance.now() - start;
-    // Drain the tiny body so the connection is free for the next request.
-    await res.arrayBuffer().catch(() => undefined);
-    // CORS responses are readable: reject HTTP errors. Opaque (no-cors)
-    // responses hide the status; the plausibility checks cover those.
-    if (res.type !== 'opaque' && !res.ok) return { ms: null, error: `HTTP ${res.status}` };
-    return { ms };
+    worker = new Worker(new URL('./latency.worker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      pending.get(e.data.id)?.(e.data.sample);
+      pending.delete(e.data.id);
+    };
+    worker.onerror = () => {
+      workerBroken = true;
+      worker?.terminate();
+      worker = null;
+      for (const resolve of pending.values()) resolve(null);
+      pending.clear();
+    };
+    return worker;
   } catch {
-    return { ms: null, error: controller.signal.aborted && !signal?.aborted ? 'timeout' : 'network error' };
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
+    workerBroken = true;
+    return null;
   }
+}
+
+/** Time one request in the latency worker, falling back to the main thread. */
+async function sampleRequest(target: LatencyTarget, signal?: AbortSignal): Promise<Sample> {
+  const w = getWorker();
+  if (!w) return timeRequest(target, signal);
+  if (signal?.aborted) return { ms: null, error: 'aborted' };
+  const id = nextId++;
+  const result = await new Promise<Sample | null>((resolve) => {
+    pending.set(id, resolve);
+    signal?.addEventListener('abort', () => w.postMessage({ type: 'abort', id } satisfies WorkerRequest), { once: true });
+    w.postMessage({ type: 'time', id, url: bustedUrl(target), mode: target.mode, timeoutMs: SAMPLE_TIMEOUT_MS } satisfies WorkerRequest);
+  });
+  // null → the worker died (e.g. blocked by CSP); redo this sample on the main thread.
+  return result ?? timeRequest(target, signal);
 }
 
 /** All requests to one target: 1 dropped warm-up + TIMED_REQUESTS samples. */
@@ -182,7 +299,7 @@ export async function measureTarget(
       samples.push({ ms: null, error: 'timeout' });
       continue;
     }
-    const s = await timeRequest(target, signal);
+    const s = await sampleRequest(target, signal);
     if (i >= DROPPED_REQUESTS) samples.push(s);
     // A dead warm-up usually means a dead host: stop early instead of
     // waiting for nine more timeouts.
@@ -211,7 +328,7 @@ export async function measureCityLatency(cityId: number, opts: MeasureOptions = 
     if (opts.signal?.aborted) break;
     const target = targets[i];
     const samples = await measureTarget(target, { ...opts, targetIndex: i });
-    const { stats, failure, inconsistent } = assessSamples(samples);
+    const { stats, failure, inconsistent } = assessSamples(samples, physicsFloorMs(opts.from, target));
     const attempt: TargetAttempt = { target, stats, failure: failure ?? (inconsistent ? 'inconsistent samples' : null) };
     attempts.push(attempt);
     if (stats && !inconsistent) {
@@ -231,6 +348,7 @@ export async function measureCityLatency(cityId: number, opts: MeasureOptions = 
     };
   }
   const last = attempts[attempts.length - 1] ?? null;
+  const physics = attempts.some((a) => a.failure?.startsWith('faster than physically'));
   return {
     status: 'unavailable',
     stats: null,
@@ -238,7 +356,8 @@ export async function measureCityLatency(cityId: number, opts: MeasureOptions = 
     viaFallback: false,
     attempts,
     note: attempts.length
-      ? `No reliable response from ${attempts.map((a) => latencyTargetLabel(a.target)).join(' or ')}.`
+      ? `No reliable response from ${attempts.map((a) => latencyTargetLabel(a.target)).join(' or ')}.` +
+        (physics ? ' Some replies were faster than light allows from your approximate location (a cache, proxy, or wrong location estimate).' : '')
       : 'No test endpoint for this city.',
   };
 }

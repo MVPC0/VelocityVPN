@@ -84,6 +84,19 @@ async function getLocationFromIP(): Promise<GeoLocation | null> {
   }
 }
 
+// One lookup per page load, shared by the closest-city badge and the
+// latency test's speed-of-light floor.
+let locationPromise: Promise<GeoLocation | null> | null = null;
+export function getVisitorLocation(): Promise<GeoLocation | null> {
+  if (!locationPromise) {
+    locationPromise = getLocationFromIP().then((loc) => {
+      if (!loc) locationPromise = null; // allow a retry later
+      return loc;
+    });
+  }
+  return locationPromise;
+}
+
 export function useClosestServer(servers: ServerLocation[]) {
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [closestServer, setClosestServer] = useState<ServerLocation | null>(null);
@@ -92,7 +105,7 @@ export function useClosestServer(servers: ServerLocation[]) {
 
   const detect = useCallback(async () => {
     setLoading(true);
-    const loc = await getLocationFromIP();
+    const loc = await getVisitorLocation();
     setLocation(loc);
     
     if (loc && servers.length > 0) {

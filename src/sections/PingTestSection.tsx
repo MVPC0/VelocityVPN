@@ -7,7 +7,9 @@ import { useClosestServer } from '@/hooks/useGeoLocation';
 import { useCityLatency } from '@/hooks/useCityLatency';
 import { MAP_CITIES } from '@/lib/world-map';
 import type { MapCity } from '@/lib/world-map';
-import { primaryLatencyTarget, latencyTargetLabel } from '@/data/ping-targets';
+import { primaryLatencyTarget, latencyTargetLabel, latencyHeadlineLabel, REFERENCE_DC_NOTE } from '@/data/ping-targets';
+import MadSpread from '@/components/MadSpread';
+import EstimateTag from '@/components/EstimateTag';
 import {
   DROPPED_REQUESTS,
   LATENCY_NOTE,
@@ -208,7 +210,17 @@ const PingTestSection: React.FC = () => {
                           {reqDone < DROPPED_REQUESTS ? 'Warm-up request (not counted)' : `Sample ${Math.min(reqDone - DROPPED_REQUESTS + 1, TIMED_REQUESTS)} of ${TIMED_REQUESTS}`}
                         </div>
                       </div>
-                    ) : status === 'unavailable' ? (
+                    ) : null}
+                    {!testing && target && status !== 'unavailable' && (
+                      <div className="mb-2">
+                        <div className="text-sm text-[#D1D5DB] inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                          <span>{latencyHeadlineLabel(target, viaFallback)}</span>
+                          <EstimateTag />
+                        </div>
+                        <p className="mt-1 text-[11px] text-[#6B7280]">{REFERENCE_DC_NOTE}</p>
+                      </div>
+                    )}
+                    {testing ? null : status === 'unavailable' ? (
                       <div className="py-2">
                         <div className="inline-flex items-center gap-2 font-['JetBrains_Mono'] text-3xl text-[#9CA3AF]">
                           <AlertTriangle size={26} className="text-[#FBBF24]" /> Unavailable
@@ -233,7 +245,9 @@ const PingTestSection: React.FC = () => {
                           {status === 'unreliable' ? 'Unreliable' : latencyLabel(headline)}
                         </div>
                         {stats && (
-                          <div className="mt-1 text-xs text-[#9CA3AF] font-['JetBrains_Mono']">median ± {stats.mad} ms</div>
+                          <div className="mt-1 text-xs text-[#9CA3AF] font-['JetBrains_Mono']">
+                            median <MadSpread mad={stats.mad} align="center" />
+                          </div>
                         )}
                         {status === 'unreliable' && result?.note && (
                           <p className="mt-2 text-xs text-[#FBBF24]">{result.note}</p>
@@ -263,7 +277,7 @@ const PingTestSection: React.FC = () => {
                         <>
                           <div className="flex justify-between items-center gap-3">
                             <span className="text-[#6B7280] text-sm">Spread (MAD)</span>
-                            <span className="text-white text-sm font-['JetBrains_Mono']">± {stats.mad} ms</span>
+                            <span className="text-white text-sm font-['JetBrains_Mono']"><MadSpread mad={stats.mad} /></span>
                           </div>
                           <div className="flex justify-between items-center gap-3">
                             <span className="text-[#6B7280] text-sm">Fastest</span>

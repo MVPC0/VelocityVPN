@@ -34,6 +34,9 @@ export interface LatencyTarget {
   /** True when the region is in/at the city itself. */
   inCity: boolean;
   url: string;
+  /** Approximate datacenter coordinates, used for the speed-of-light floor. */
+  lat: number;
+  lng: number;
   /** `cors` when the endpoint sends Access-Control-Allow-Origin. */
   mode: 'cors' | 'no-cors';
 }
@@ -41,11 +44,36 @@ export interface LatencyTarget {
 /** Typical extra ms an Azure blob fallback reads vs AWS in the same metro (measured). */
 export const AZURE_BLOB_BIAS_MS = 3; // pooled median, see header (range -0.4..+26 by region)
 
+// Approximate region coordinates (metro of the region's datacenters).
+// me-central-1's exact site isn't published; placed between Abu Dhabi and
+// Dubai so the physics floor errs low.
+const COORDS: Record<string, [number, number]> = {
+  'us-west-1': [37.35, -121.96], 'us-east-2': [39.96, -83.0], 'us-east-1': [39.04, -77.49],
+  'ap-northeast-1': [35.68, 139.69], 'eu-central-1': [50.11, 8.68], 'ap-northeast-2': [37.57, 126.98],
+  'eu-west-2': [51.51, -0.13], 'ap-southeast-6': [-36.85, 174.76], 'ap-southeast-2': [-33.87, 151.21],
+  'ap-east-1': [22.32, 114.17], 'ap-southeast-4': [-37.81, 144.96], 'eu-north-1': [59.33, 18.07],
+  'ap-southeast-1': [1.35, 103.82], 'sa-east-1': [-23.55, -46.63], 'me-central-1': [24.8, 55.0],
+  'af-south-1': [-33.92, 18.42],
+  westus: [37.78, -122.42], southcentralus: [29.42, -98.49], northcentralus: [41.88, -87.63],
+  eastus: [36.67, -78.39], japaneast: [35.68, 139.69], westeurope: [52.37, 4.9], koreacentral: [37.57, 126.98],
+  uksouth: [51.51, -0.13], newzealandnorth: [-36.85, 174.76], polandcentral: [52.23, 21.01],
+  australiaeast: [-33.87, 151.21], eastasia: [22.32, 114.17], australiasoutheast: [-37.81, 144.96],
+  swedencentral: [60.67, 17.14], southeastasia: [1.35, 103.82], brazilsouth: [-23.55, -46.63],
+  uaenorth: [25.2, 55.27], southafricanorth: [-26.2, 28.05],
+};
+
+const coords = (region: string) => {
+  const c = COORDS[region];
+  if (!c) throw new Error(`No coordinates for region ${region}`);
+  return { lat: c[0], lng: c[1] };
+};
+
 const aws = (region: string, regionLocation: string, inCity: boolean): LatencyTarget => ({
   provider: 'AWS',
   region,
   regionLocation,
   inCity,
+  ...coords(region),
   url: `https://dynamodb.${region}.amazonaws.com/ping`,
   mode: 'cors',
 });
@@ -55,6 +83,7 @@ const azure = (region: string, regionLocation: string, inCity: boolean): Latency
   region,
   regionLocation,
   inCity,
+  ...coords(region),
   url: `https://s8${region}.blob.core.windows.net/public/latency-test.json`,
   mode: 'no-cors',
 });
@@ -94,3 +123,16 @@ export function primaryLatencyTarget(cityId: number): LatencyTarget | undefined 
 export function latencyTargetLabel(t: LatencyTarget): string {
   return `${t.provider} ${t.region} (${t.regionLocation})`;
 }
+
+/**
+ * Label for the result itself, e.g. `Latency to AWS London`,
+ * `Latency to nearest AWS region (Ohio)`, `Latency to Azure Chicago (fallback)`.
+ */
+export function latencyHeadlineLabel(t: LatencyTarget, viaFallback = false): string {
+  if (viaFallback) return `Latency to ${t.provider} ${t.regionLocation} (fallback)`;
+  if (t.inCity) return `Latency to ${t.provider} ${t.regionLocation}`;
+  return `Latency to nearest ${t.provider} region (${t.regionLocation})`;
+}
+
+/** BYO-WireGuard reminder shown next to every result. */
+export const REFERENCE_DC_NOTE = "Reference cloud datacenter — not your VPN provider's server.";

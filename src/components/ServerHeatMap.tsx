@@ -4,6 +4,7 @@ import {
   Globe, Crosshair, Sparkles
 } from "lucide-react";
 import { getFlag } from "@/data/velocity-servers";
+import { formatSpread } from "@/lib/latency";
 
 interface VPNServer {
   id: number; name: string; city: string; country: string;
@@ -258,7 +259,7 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                     </span>
                     <span className="flex items-center gap-1">
                       <Crosshair size={9} />
-                      {server.spread !== null ? `± ${server.spread}ms` : "--"}
+                      {server.spread !== null ? formatSpread(server.spread) : "--"}
                     </span>
                   </div>
                 </div>

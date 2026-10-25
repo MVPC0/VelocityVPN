@@ -21,8 +21,10 @@ import {
 } from "@/hooks/useProviderConfig";
 import { useVpnDetector } from "@/hooks/useVpnDetector";
 import { runCityLatency, useLatencyResults } from "@/hooks/useCityLatency";
-import { LATENCY_NOTE, latencyColor, type LatencyResult } from "@/lib/latency";
-import { latencyTargetLabel, primaryLatencyTarget } from "@/data/ping-targets";
+import { LATENCY_NOTE, formatSpread, latencyColor, type LatencyResult } from "@/lib/latency";
+import MadSpread from "@/components/MadSpread";
+import EstimateTag from "@/components/EstimateTag";
+import { latencyHeadlineLabel, latencyTargetLabel, primaryLatencyTarget, REFERENCE_DC_NOTE } from "@/data/ping-targets";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -93,7 +95,7 @@ function LatencyBadge({ result }: { result: LatencyResult | undefined }) {
   return (
     <>
       <div className="font-['JetBrains_Mono'] text-sm" style={{ color: result.status === "unreliable" ? "#FBBF24" : latencyColor(median) }}>{median}ms</div>
-      <div className="text-[10px] text-[#6B7280]">± {mad}ms{result.status === "unreliable" ? " · unreliable" : ""}</div>
+      <div className="text-[10px] text-[#6B7280]"><MadSpread mad={mad} />{result.status === "unreliable" ? " · unreliable" : ""}</div>
     </>
   );
 }
@@ -377,7 +379,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-['Archivo'] text-lg tracking-tight">Latency Reference Locations ({servers.length})</h3>
-                <p className="text-xs text-[#6B7280] mt-0.5">HTTP round-trip time to a cloud datacenter in or near each city — the same test as the home page (median ± MAD of 9 requests). {LATENCY_NOTE} These aren&apos;t VelocityVPN servers; your tunnel uses your provider&apos;s endpoint.</p>
+                <p className="text-xs text-[#6B7280] mt-0.5">HTTP round-trip time to a cloud datacenter in or near each city — the same test as the home page (median ± MAD of 9 requests). {LATENCY_NOTE} {REFERENCE_DC_NOTE} VelocityVPN is bring-your-own WireGuard: your tunnel uses your provider&apos;s endpoint.</p>
               </div>
               <button onClick={testAll} disabled={isTestingAll}
                 className="flex shrink-0 whitespace-nowrap items-center gap-1.5 text-sm text-[#E85D4E] hover:text-white transition-colors disabled:opacity-50 cursor-pointer bg-transparent border-0">
@@ -403,7 +405,14 @@ export default function Dashboard() {
                               const r = latency.get(server.id);
                               const t = r?.target ?? primaryLatencyTarget(server.id);
                               if (!t) return null;
-                              return <>{latencyTargetLabel(t)}{r?.viaFallback ? <span className="text-[#FBBF24]"> · via fallback</span> : null}</>;
+                              const fb = !!r?.viaFallback;
+                              return (
+                                <>
+                                  <span className={fb ? "text-[#FBBF24]" : "text-[#A3B8D4]"}>{latencyHeadlineLabel(t, fb)}</span>{" "}
+                                  <EstimateTag className="ml-0.5" />
+                                  <span className="block text-[#4B5563]">{latencyTargetLabel(t)}</span>
+                                </>
+                              );
                             })()}
                           </div>
                         </div>
@@ -460,7 +469,7 @@ export default function Dashboard() {
                       <span className="text-sm">{getFlag(s.countryCode)}</span>
                       <span className="text-xs text-white font-medium">{s.city}</span>
                     </div>
-                    <div className="font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF]">{latency.get(s.id)?.status === "unavailable" ? "Unavailable" : s.latency !== null ? `${s.latency} ± ${s.spread} ms` : "-- ms"}</div>
+                    <div className="font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF]">{latency.get(s.id)?.status === "unavailable" ? "Unavailable" : s.latency !== null ? `${s.latency} ms ${formatSpread(s.spread ?? 0)}` : "-- ms"}</div>
                   </div>
                 ))}
               </div>

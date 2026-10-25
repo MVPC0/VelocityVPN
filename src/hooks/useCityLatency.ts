@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { measureCityLatency, type LatencyResult, type MeasureProgress } from '@/lib/latency';
+import { measureCityLatency, type GeoPoint, type LatencyResult, type MeasureProgress } from '@/lib/latency';
+import { getVisitorLocation } from '@/hooks/useGeoLocation';
+
+/** Visitor location for the physics floor; null (no floor) if lookup is slow or fails. */
+async function visitorPoint(): Promise<GeoPoint | null> {
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), 3000));
+  const loc = await Promise.race([getVisitorLocation().catch(() => null), timeout]);
+  return loc ? { lat: loc.lat, lng: loc.lon } : null;
+}
 
 // Latest result per city, shared by the landing page and the dashboard so
 // both show the same measurement for the same city in a session.
@@ -28,7 +36,9 @@ export async function runCityLatency(
   cityId: number,
   opts: { signal?: AbortSignal; onProgress?: (p: MeasureProgress) => void } = {},
 ): Promise<LatencyResult | null> {
-  const result = await measureCityLatency(cityId, opts);
+  const from = await visitorPoint();
+  if (opts.signal?.aborted) return null;
+  const result = await measureCityLatency(cityId, { ...opts, from });
   if (opts.signal?.aborted) return null;
   publish(cityId, result);
   return result;
