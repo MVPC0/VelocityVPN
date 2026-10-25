@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { fetchSteamCounts, steamCount } from "@/lib/steam";
 import { Gamepad2, Users, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
 
 // ─── Steam Games Panel ────────────────────────────────────────
-// Tries Steam's public API. If it fails or CORS blocks, shows labeled estimates.
-// Fortnite is always an estimate (no Epic public count used).
+// Live counts come only from Steam's public API (via a same-origin function).
+// If Steam doesn't answer, a game shows "—" — never a guessed number.
+// Fortnite is not on Steam; its figure is a labeled model estimate.
 
-// noEstimate: no fallback figure exists; show "—" unless Steam returns a live count.
-const STEAM_GAMES: { appId: number; name: string; genre: string; noEstimate?: boolean }[] = [
+const STEAM_GAMES: { appId: number; name: string; genre: string }[] = [
   { appId: 730, name: "CS2", genre: "FPS" },
   { appId: 570, name: "Dota 2", genre: "MOBA" },
   { appId: 578080, name: "PUBG", genre: "Battle Royale" },
@@ -31,61 +32,15 @@ const STEAM_GAMES: { appId: number; name: string; genre: string; noEstimate?: bo
   { appId: 346110, name: "ARK", genre: "Survival" },
   { appId: 236390, name: "War Thunder", genre: "Simulation" },
   { appId: 238960, name: "Path of Exile", genre: "ARPG" },
-  { appId: 3010850, name: "Gears of War: E-Day", genre: "Shooter", noEstimate: true },
+  { appId: 3010850, name: "Gears of War: E-Day", genre: "Shooter" },
 ];
-
-// Same-origin Netlify Function that relays Steam's public count (Steam sends no CORS headers).
-const STEAM_COUNTS_ENDPOINT = "/.netlify/functions/steam-players";
-
-async function fetchSteamCounts(appIds: number[]): Promise<Record<string, number | null> | null> {
-  try {
-    const res = await fetch(`${STEAM_COUNTS_ENDPOINT}?appids=${appIds.join(",")}`, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok || !(res.headers.get("content-type") || "").includes("json")) return null;
-    const data = await res.json();
-    return data && typeof data.counts === "object" ? data.counts : null;
-  } catch {
-    return null;
-  }
-}
 
 // Games without a count ("—") sort last; ties keep list order.
 function byCountDesc(a: GameData, b: GameData) {
   return (b.count ?? -1) - (a.count ?? -1);
 }
 
-// Fortnite is Epic exclusive - modeled
-// Realistic fallback player counts (based on known Steam data)
-function getFallbackPlayerCount(appId: number): number {
-  const estimates: Record<number, number> = {
-    730: 1200000,      // CS2
-    570: 680000,       // Dota 2
-    578080: 320000,    // PUBG
-    1172470: 280000,   // Apex
-    553850: 210000,    // Helldivers 2
-    2767030: 260000,   // Marvel Rivals
-    1623730: 145000,   // Palworld
-    252490: 125000,    // Rust
-    3241660: 85000,    // R.E.P.O.
-    440: 95000,        // TF2
-    1085660: 85000,    // Destiny 2
-    359550: 75000,     // R6 Siege
-    252950: 65000,     // Rocket League
-    892970: 58000,     // Valheim
-    221100: 52000,     // DayZ
-    381210: 45000,     // Dead by Daylight
-    1245620: 95000,    // Elden Ring
-    2073850: 38000,    // THE FINALS
-    582010: 35000,     // MHW
-    271590: 220000,    // GTA V
-    1938090: 180000,   // CoD
-    346110: 48000,     // ARK
-    236390: 42000,     // War Thunder
-    238960: 55000,     // Path of Exile
-  };
-  const base = estimates[appId] || 30000;
-  return Math.floor(base * (0.9 + Math.random() * 0.2));
-}
-
+// Fortnite is Epic-exclusive with no public count: a time-of-day model, always labeled as an estimate.
 function getFortniteEstimate() {
   const now = new Date();
   const utcHour = now.getUTCHours();
@@ -105,6 +60,16 @@ interface GameData {
   source: "steam" | "epic";
 }
 
+const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+function buildGames(counts: Record<string, number | null> | null): GameData[] {
+  const list: GameData[] = STEAM_GAMES.map((g) => {
+    return { name: g.name, count: steamCount(counts, g.appId), genre: g.genre, source: "steam" as const };
+  });
+  list.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
+  return list.sort(byCountDesc);
+}
+
 const genreColors: Record<string, string> = {
   FPS: "#E85D4E", MOBA: "#9B6DFF", "Battle Royale": "#4ADE80",
   Survival: "#FBBF24", Action: "#22D3EE", Sports: "#A3B8D4",
@@ -116,99 +81,25 @@ const genreColors: Record<string, string> = {
 export default function SteamGamesPanel() {
   const [games, setGames] = useState<GameData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error] = useState("");
-
-  const CORS_PROXIES = [
-    "https://api.allorigins.win/raw?url=",
-    "https://corsproxy.io/?",
-  ];
-
-  const fetchPlayerCount = async (appId: number): Promise<number> => {
-    const steamUrl = `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${appId}`;
-
-    // Try direct first (works if CORS is allowed)
-    try {
-      const res = await fetch(steamUrl, { signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const data = await res.json();
-        return data?.response?.player_count ?? 0;
-      }
-    } catch { /* CORS or timeout - try proxy */ }
-
-    // Fallback to CORS proxy
-    for (const proxy of CORS_PROXIES) {
-      try {
-        const res = await fetch(proxy + encodeURIComponent(steamUrl), {
-          signal: AbortSignal.timeout(5000),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return data?.response?.player_count ?? 0;
-        }
-      } catch { /* try next proxy */ }
-    }
-
-    return 0;
-  };
-
-  // Show fallback data immediately, then try to fetch real data
-  const showFallback = useCallback(() => {
-    const fallback: GameData[] = STEAM_GAMES.map((g) => ({
-      name: g.name,
-      count: g.noEstimate ? null : getFallbackPlayerCount(g.appId),
-      genre: g.genre,
-      source: "steam" as const,
-    }));
-    fallback.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
-    setGames(fallback.sort(byCountDesc));
-    setLoading(false);
-  }, []);
+  const [refreshing, setRefreshing] = useState(false);
+  const [asOf, setAsOf] = useState<Date | null>(null);
 
   const loadAll = useCallback(async () => {
-    // Show fallback immediately so user sees data right away
-    showFallback();
-
-    // Live Steam counts via the same-origin function (all games, one request)
+    setRefreshing(true);
     const live = await fetchSteamCounts(STEAM_GAMES.map((g) => g.appId));
-    if (live) {
-      const merged: GameData[] = STEAM_GAMES.map((g) => {
-        const c = live[String(g.appId)];
-        const count = typeof c === "number" ? c : g.noEstimate ? null : getFallbackPlayerCount(g.appId);
-        return { name: g.name, count, genre: g.genre, source: "steam" as const };
-      });
-      merged.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
-      setGames(merged.sort(byCountDesc));
-      return;
-    }
-
-    // Try to fetch real Steam data in background (single batch, fast timeout)
-    try {
-      const results: GameData[] = [];
-      // Only fetch top 5 games to keep it fast
-      for (const g of STEAM_GAMES.slice(0, 5)) {
-        const count = await fetchPlayerCount(g.appId);
-        if (count > 0) results.push({ name: g.name, count, genre: g.genre, source: "steam" as const });
-      }
-      if (results.length >= 3) {
-        // Merge with remaining fallback games
-        const seen = new Set(results.map((r) => r.name));
-        for (const g of STEAM_GAMES.slice(5)) {
-          if (!seen.has(g.name)) {
-            results.push({ name: g.name, count: g.noEstimate ? null : getFallbackPlayerCount(g.appId), genre: g.genre, source: "steam" as const });
-          }
-        }
-        results.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
-        setGames(results.sort(byCountDesc));
-      }
-    } catch {
-      // Fallback already shown, ignore error
-    }
-  }, [showFallback]);
+    setGames(buildGames(live?.counts ?? null));
+    setAsOf(live ? live.fetchedAt : null);
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  const totalPlayers = useMemo(() => games.reduce((s, g) => s + (g.count ?? 0), 0), [games]);
-  const topGame = games[0]?.name ?? "--";
+  // Stats use real Steam counts only (the Fortnite estimate is not added in).
+  const steamCounted = useMemo(() => games.filter((g) => g.source === "steam" && g.count !== null), [games]);
+  const totalPlayers = steamCounted.length ? steamCounted.reduce((s, g) => s + (g.count ?? 0), 0) : null;
+  const topGame = steamCounted[0]?.name ?? "—";
+  const steamLive = steamCounted.length > 0;
 
   const fmt = (n: number | null) => {
     if (n === null) return "—";
@@ -237,9 +128,9 @@ export default function SteamGamesPanel() {
         </div>
         <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1">
-            <Users size={10} /> Total Players
+            <Users size={10} /> Steam Players
           </div>
-          <div className="font-['JetBrains_Mono'] text-2xl text-[#4ADE80]">{fmt(totalPlayers)}</div>
+          <div className={`font-['JetBrains_Mono'] text-2xl ${totalPlayers === null ? "text-[#6B7280]" : "text-[#4ADE80]"}`}>{fmt(totalPlayers)}</div>
         </div>
         <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1">
@@ -257,24 +148,20 @@ export default function SteamGamesPanel() {
             Player counts
           </h3>
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-[9px] text-[#6B7280]">
-              <span className="w-2 h-2 rounded-full bg-[#4ADE80]" /> Steam
-            </span>
+            {steamLive && asOf ? (
+              <span className="flex items-center gap-1 text-[9px] text-[#6B7280]" data-testid="steam-status">
+                <span className="w-2 h-2 rounded-full bg-[#4ADE80]" /> Steam · as of {fmtTime(asOf)}
+              </span>
+            ) : (
+              <span className="text-[9px] text-[#6B7280]" data-testid="steam-status">Steam counts unavailable</span>
+            )}
             <span className="flex items-center gap-1 text-[9px] text-[#9B6DFF]">
               <span className="w-2 h-2 rounded-full bg-[#9B6DFF]" /> Fortnite estimate
             </span>
           </div>
         </div>
 
-        {error ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-[#EF4444] mb-3">{error}</p>
-            <button onClick={loadAll} className="px-4 py-2 bg-[#E85D4E] text-white rounded-lg text-xs font-medium cursor-pointer border-0">
-              <RefreshCw size={12} className="inline mr-1" /> Retry
-            </button>
-          </div>
-        ) : (
-          <>
+        <>
             <div className="grid grid-cols-12 gap-2 mb-2 px-3 text-[10px] text-[#6B7280] uppercase tracking-wider">
               <div className="col-span-1">#</div>
               <div className="col-span-4">Game</div>
@@ -292,7 +179,10 @@ export default function SteamGamesPanel() {
                   <div key={game.name} className="grid grid-cols-12 gap-2 items-center px-3 py-2 rounded-lg hover:bg-[rgba(255,255,255,0.03)] transition-colors">
                     <div className="col-span-1 text-xs text-[#6B7280]">{i + 1}</div>
                     <div className="col-span-4 flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${game.source === "epic" ? "bg-[#9B6DFF]" : "bg-[#4ADE80]"}`} />
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${game.source === "epic" ? "bg-[#9B6DFF]" : game.count !== null ? "bg-[#4ADE80]" : ""}`}
+                        data-dot={game.source === "epic" ? "estimate" : game.count !== null ? "live" : "none"}
+                      />
                       <span className="text-sm text-white font-medium truncate" title={game.name}>{game.name}</span>
                     </div>
                     <div className="col-span-2">
@@ -300,9 +190,11 @@ export default function SteamGamesPanel() {
                     </div>
                     <div
                       className={`col-span-3 text-right font-['JetBrains_Mono'] text-sm ${game.count === null ? "text-[#6B7280]" : "text-white"}`}
-                      title={game.count === null ? "No public live count available right now" : undefined}
+                      title={game.count === null ? "Steam didn't return a count" : game.source === "epic" ? "Estimate (no public Fortnite count)" : undefined}
                     >
-                      {fmt(game.count)}
+                      {game.source === "epic" && game.count !== null ? (
+                        <>~{fmt(game.count)} <span className="text-[9px] text-[#9B6DFF] uppercase tracking-wider">est.</span></>
+                      ) : fmt(game.count)}
                     </div>
                     <div className="col-span-2">
                       <div className="h-1.5 bg-[#111118] rounded-full overflow-hidden">
@@ -315,13 +207,12 @@ export default function SteamGamesPanel() {
                 );
               })}
             </div>
-          </>
-        )}
+        </>
 
         <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between">
-          <p className="text-[10px] text-[#6B7280]">Data from Steam API + Epic Games. Auto-refreshes every 60s.</p>
-          <button onClick={loadAll} className="text-[10px] text-[#E85D4E] hover:text-white flex items-center gap-1 cursor-pointer bg-transparent border-0">
-            <RefreshCw size={10} /> Refresh
+          <p className="text-[10px] text-[#6B7280]">Counts from Steam's public API. Fortnite is a model estimate. Auto-refreshes every 60s.</p>
+          <button onClick={loadAll} disabled={refreshing} className="text-[10px] text-[#E85D4E] hover:text-white flex items-center gap-1 cursor-pointer bg-transparent border-0">
+            <RefreshCw size={10} className={refreshing ? "animate-spin" : undefined} /> Refresh
           </button>
         </div>
       </div>

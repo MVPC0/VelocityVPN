@@ -37,10 +37,10 @@ const testimonials: Testimonial[] = [
     bgColor: "bg-[#1a3a1a]",
   },
   {
-    quote: "Steam counts come from Steam's public API when it responds. If it fails, the panel shows an estimate and should say so.",
+    quote: "Steam counts come from Steam's public API when it responds. If Steam doesn't answer, the panel shows \"—\" instead of a number.",
     name: "Product fact",
     role: "Game trackers",
-    game: "Steam + estimates",
+    game: "Steam, no guesses",
     initials: "GT",
     bgColor: "bg-[#3a2a1a]",
   },
