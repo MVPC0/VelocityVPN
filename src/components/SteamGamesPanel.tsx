@@ -210,7 +210,7 @@ export default function SteamGamesPanel() {
         </>
 
         <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between">
-          <p className="text-[10px] text-[#6B7280]">Counts from Steam's public API. Fortnite is a model estimate. Auto-refreshes every 60s.</p>
+          <p className="text-[10px] text-[#6B7280]">Counts from Steam's public API. Fortnite is a model estimate.</p>
           <button onClick={loadAll} disabled={refreshing} className="text-[10px] text-[#E85D4E] hover:text-white flex items-center gap-1 cursor-pointer bg-transparent border-0">
             <RefreshCw size={10} className={refreshing ? "animate-spin" : undefined} /> Refresh
           </button>
