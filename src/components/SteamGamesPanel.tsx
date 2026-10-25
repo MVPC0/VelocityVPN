@@ -5,7 +5,8 @@ import { Gamepad2, Users, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
 // ─── Steam Games Panel ────────────────────────────────────────
 // Live counts come only from Steam's public API (via a same-origin function).
 // If Steam doesn't answer, a game shows "—" — never a guessed number.
-// Fortnite is not on Steam and has no public count, so it always shows "—".
+// Fortnite is not on Steam. Epic publishes per-island peak counts (Fortnite Data API),
+// not one live total, so the row shows "—".
 
 const STEAM_GAMES: { appId: number; name: string; genre: string }[] = [
   { appId: 730, name: "CS2", genre: "FPS" },
@@ -174,7 +175,7 @@ export default function SteamGamesPanel() {
                     </div>
                     <div
                       className={`col-span-3 text-right font-['JetBrains_Mono'] text-sm ${game.count === null ? "text-[#6B7280]" : "text-white"}`}
-                      title={game.count !== null ? undefined : game.source === "epic" ? "No public Fortnite player count" : "Steam didn't return a count"}
+                      title={game.count !== null ? undefined : game.source === "epic" ? "Epic doesn't publish a single live Fortnite player count" : "Steam didn't return a count"}
                     >
                       {fmt(game.count)}
                     </div>
@@ -192,7 +193,7 @@ export default function SteamGamesPanel() {
         </>
 
         <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between">
-          <p className="text-[10px] text-[#6B7280]">Counts from Steam's public API. Fortnite has no public count.</p>
+          <p className="text-[10px] text-[#6B7280]">Counts from Steam's public API. Epic doesn't publish a single live Fortnite count.</p>
           <button onClick={loadAll} disabled={refreshing} className="text-[10px] text-[#E85D4E] hover:text-white flex items-center gap-1 cursor-pointer bg-transparent border-0">
             <RefreshCw size={10} className={refreshing ? "animate-spin" : undefined} /> Refresh
           </button>

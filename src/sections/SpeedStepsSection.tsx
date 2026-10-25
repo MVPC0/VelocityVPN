@@ -14,7 +14,7 @@ const steps = [
   { num: '04', title: 'Download .conf', desc: 'Get an import-ready WireGuard file or QR built from your provider\'s details. Nothing is invented.', icon: '📄' },
   { num: '05', title: 'Import WireGuard', desc: 'Open the official WireGuard app on your device. This website cannot hide your IP by itself.', icon: '🛡️' },
   { num: '06', title: 'Check latency', desc: 'HTTP round-trip time from your browser to a cloud region near that city. Not ICMP ping. A region hint, not a game-server test.', icon: '📶' },
-  { num: '07', title: 'Track games', desc: 'Steam player counts when the public API answers, "—" when it doesn\'t. Fortnite has no public count. No server load data yet.', icon: '🎮' },
+  { num: '07', title: 'Track games', desc: 'Steam player counts when the public API answers, "—" when it doesn\'t. Epic doesn\'t publish a single live Fortnite count. No server load data yet.', icon: '🎮' },
   { num: '08', title: 'Play', desc: 'Your ping, DDoS protection, and kill switch come from the provider and the WireGuard app - not from this dashboard.', icon: '🏆' },
 ];
 
