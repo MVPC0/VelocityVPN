@@ -18,7 +18,9 @@ const games: Game[] = [
   { name: 'PUBG', platforms: ['PC', 'PS', 'Xbox'], image: '/games/pubg.jpg' },
   { name: 'Overwatch 2', platforms: ['PC', 'PS', 'Xbox', 'Switch'], image: '/games/overwatch2.jpg' },
   { name: 'Dota 2', platforms: ['PC'], image: '/games/dota2.jpg' },
-  { name: 'Gears of War: E-Day', platforms: ['PC', 'Xbox'], image: '/games/gears-eday.svg' },
+  // Official key art: Steam store capsule for app 3010850 (616x353, re-encoded), from
+  // https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/3010850/976e1a03f1dd94a80d962fdd734efe0d79b407f4/capsule_616x353.jpg
+  { name: 'Gears of War: E-Day', platforms: ['PC', 'Xbox'], image: '/games/gears-eday.jpg' },
 ];
 
 const platformIcons: Record<string, string> = {

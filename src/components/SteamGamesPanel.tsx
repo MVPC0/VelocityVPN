@@ -5,7 +5,8 @@ import { Gamepad2, Users, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
 // Tries Steam's public API. If it fails or CORS blocks, shows labeled estimates.
 // Fortnite is always an estimate (no Epic public count used).
 
-const STEAM_GAMES = [
+// noEstimate: no fallback figure exists; show "—" unless Steam returns a live count.
+const STEAM_GAMES: { appId: number; name: string; genre: string; noEstimate?: boolean }[] = [
   { appId: 730, name: "CS2", genre: "FPS" },
   { appId: 570, name: "Dota 2", genre: "MOBA" },
   { appId: 578080, name: "PUBG", genre: "Battle Royale" },
@@ -30,7 +31,27 @@ const STEAM_GAMES = [
   { appId: 346110, name: "ARK", genre: "Survival" },
   { appId: 236390, name: "War Thunder", genre: "Simulation" },
   { appId: 238960, name: "Path of Exile", genre: "ARPG" },
+  { appId: 3010850, name: "Gears of War: E-Day", genre: "Shooter", noEstimate: true },
 ];
+
+// Same-origin Netlify Function that relays Steam's public count (Steam sends no CORS headers).
+const STEAM_COUNTS_ENDPOINT = "/.netlify/functions/steam-players";
+
+async function fetchSteamCounts(appIds: number[]): Promise<Record<string, number | null> | null> {
+  try {
+    const res = await fetch(`${STEAM_COUNTS_ENDPOINT}?appids=${appIds.join(",")}`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok || !(res.headers.get("content-type") || "").includes("json")) return null;
+    const data = await res.json();
+    return data && typeof data.counts === "object" ? data.counts : null;
+  } catch {
+    return null;
+  }
+}
+
+// Games without a count ("—") sort last; ties keep list order.
+function byCountDesc(a: GameData, b: GameData) {
+  return (b.count ?? -1) - (a.count ?? -1);
+}
 
 // Fortnite is Epic exclusive - modeled
 // Realistic fallback player counts (based on known Steam data)
@@ -79,7 +100,7 @@ function getFortniteEstimate() {
 
 interface GameData {
   name: string;
-  count: number;
+  count: number | null;
   genre: string;
   source: "steam" | "epic";
 }
@@ -134,18 +155,31 @@ export default function SteamGamesPanel() {
   const showFallback = useCallback(() => {
     const fallback: GameData[] = STEAM_GAMES.map((g) => ({
       name: g.name,
-      count: getFallbackPlayerCount(g.appId),
+      count: g.noEstimate ? null : getFallbackPlayerCount(g.appId),
       genre: g.genre,
       source: "steam" as const,
     }));
     fallback.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
-    setGames(fallback.sort((a, b) => b.count - a.count));
+    setGames(fallback.sort(byCountDesc));
     setLoading(false);
   }, []);
 
   const loadAll = useCallback(async () => {
     // Show fallback immediately so user sees data right away
     showFallback();
+
+    // Live Steam counts via the same-origin function (all games, one request)
+    const live = await fetchSteamCounts(STEAM_GAMES.map((g) => g.appId));
+    if (live) {
+      const merged: GameData[] = STEAM_GAMES.map((g) => {
+        const c = live[String(g.appId)];
+        const count = typeof c === "number" ? c : g.noEstimate ? null : getFallbackPlayerCount(g.appId);
+        return { name: g.name, count, genre: g.genre, source: "steam" as const };
+      });
+      merged.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
+      setGames(merged.sort(byCountDesc));
+      return;
+    }
 
     // Try to fetch real Steam data in background (single batch, fast timeout)
     try {
@@ -160,11 +194,11 @@ export default function SteamGamesPanel() {
         const seen = new Set(results.map((r) => r.name));
         for (const g of STEAM_GAMES.slice(5)) {
           if (!seen.has(g.name)) {
-            results.push({ name: g.name, count: getFallbackPlayerCount(g.appId), genre: g.genre, source: "steam" as const });
+            results.push({ name: g.name, count: g.noEstimate ? null : getFallbackPlayerCount(g.appId), genre: g.genre, source: "steam" as const });
           }
         }
         results.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
-        setGames(results.sort((a, b) => b.count - a.count));
+        setGames(results.sort(byCountDesc));
       }
     } catch {
       // Fallback already shown, ignore error
@@ -173,10 +207,11 @@ export default function SteamGamesPanel() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  const totalPlayers = useMemo(() => games.reduce((s, g) => s + g.count, 0), [games]);
+  const totalPlayers = useMemo(() => games.reduce((s, g) => s + (g.count ?? 0), 0), [games]);
   const topGame = games[0]?.name ?? "--";
 
-  const fmt = (n: number) => {
+  const fmt = (n: number | null) => {
+    if (n === null) return "—";
     if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
     if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
     return n.toString();
@@ -251,22 +286,29 @@ export default function SteamGamesPanel() {
             <div className="space-y-1">
               {games.map((game, i) => {
                 const maxCount = games[0]?.count || 1;
-                const barWidth = (game.count / maxCount) * 100;
+                const barWidth = ((game.count ?? 0) / maxCount) * 100;
                 const color = genreColors[game.genre] || "#6B7280";
                 return (
                   <div key={game.name} className="grid grid-cols-12 gap-2 items-center px-3 py-2 rounded-lg hover:bg-[rgba(255,255,255,0.03)] transition-colors">
                     <div className="col-span-1 text-xs text-[#6B7280]">{i + 1}</div>
                     <div className="col-span-4 flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${game.source === "epic" ? "bg-[#9B6DFF]" : "bg-[#4ADE80]"}`} />
-                      <span className="text-sm text-white font-medium truncate">{game.name}</span>
+                      <span className="text-sm text-white font-medium truncate" title={game.name}>{game.name}</span>
                     </div>
                     <div className="col-span-2">
                       <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: `${color}15`, color }}>{game.genre}</span>
                     </div>
-                    <div className="col-span-3 text-right font-['JetBrains_Mono'] text-sm text-white">{fmt(game.count)}</div>
+                    <div
+                      className={`col-span-3 text-right font-['JetBrains_Mono'] text-sm ${game.count === null ? "text-[#6B7280]" : "text-white"}`}
+                      title={game.count === null ? "No public live count available right now" : undefined}
+                    >
+                      {fmt(game.count)}
+                    </div>
                     <div className="col-span-2">
                       <div className="h-1.5 bg-[#111118] rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(3, barWidth)}%`, backgroundColor: color }} />
+                        {game.count !== null && (
+                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(3, barWidth)}%`, backgroundColor: color }} />
+                        )}
                       </div>
                     </div>
                   </div>
