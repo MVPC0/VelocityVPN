@@ -8,6 +8,7 @@ interface Game {
   image: string;
 }
 
+// Card art is official store art; per-image source URLs are in public/games/SOURCES.md.
 const games: Game[] = [
   { name: 'League of Legends', platforms: ['PC'], image: '/games/lol.jpg' },
   { name: 'Valorant', platforms: ['PC'], image: '/games/valorant.jpg' },
