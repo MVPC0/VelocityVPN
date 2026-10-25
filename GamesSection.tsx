@@ -18,6 +18,7 @@ const games: Game[] = [
   { name: 'PUBG', platforms: ['PC', 'PS', 'Xbox'], image: '/games/pubg.jpg' },
   { name: 'Overwatch 2', platforms: ['PC', 'PS', 'Xbox', 'Switch'], image: '/games/overwatch2.jpg' },
   { name: 'Dota 2', platforms: ['PC'], image: '/games/dota2.jpg' },
+  { name: 'Gears of War: E-Day', platforms: ['PC', 'Xbox'], image: '/games/gears-eday.svg' },
 ];
 
 const platformIcons: Record<string, string> = {
