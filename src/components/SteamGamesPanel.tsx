@@ -5,7 +5,7 @@ import { Gamepad2, Users, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
 // ─── Steam Games Panel ────────────────────────────────────────
 // Live counts come only from Steam's public API (via a same-origin function).
 // If Steam doesn't answer, a game shows "—" — never a guessed number.
-// Fortnite is not on Steam; its figure is a labeled model estimate.
+// Fortnite is not on Steam and has no public count, so it always shows "—".
 
 const STEAM_GAMES: { appId: number; name: string; genre: string }[] = [
   { appId: 730, name: "CS2", genre: "FPS" },
@@ -40,19 +40,6 @@ function byCountDesc(a: GameData, b: GameData) {
   return (b.count ?? -1) - (a.count ?? -1);
 }
 
-// Fortnite is Epic-exclusive with no public count: a time-of-day model, always labeled as an estimate.
-function getFortniteEstimate() {
-  const now = new Date();
-  const utcHour = now.getUTCHours();
-  const isWeekend = now.getUTCDay() === 0 || now.getUTCDay() === 6;
-  let base = 1_500_000;
-  if (utcHour >= 15 && utcHour <= 23) base = 3_200_000;
-  else if (utcHour >= 12 && utcHour < 15) base = 2_400_000;
-  else if (utcHour >= 4 && utcHour < 12) base = 900_000;
-  if (isWeekend) base = Math.floor(base * 1.35);
-  return base + Math.floor(Math.random() * 200000);
-}
-
 interface GameData {
   name: string;
   count: number | null;
@@ -66,7 +53,7 @@ function buildGames(counts: Record<string, number | null> | null): GameData[] {
   const list: GameData[] = STEAM_GAMES.map((g) => {
     return { name: g.name, count: steamCount(counts, g.appId), genre: g.genre, source: "steam" as const };
   });
-  list.push({ name: "Fortnite", count: getFortniteEstimate(), genre: "Battle Royale", source: "epic" });
+  list.push({ name: "Fortnite", count: null, genre: "Battle Royale", source: "epic" });
   return list.sort(byCountDesc);
 }
 
@@ -95,7 +82,7 @@ export default function SteamGamesPanel() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Stats use real Steam counts only (the Fortnite estimate is not added in).
+  // Stats use real Steam counts only.
   const steamCounted = useMemo(() => games.filter((g) => g.source === "steam" && g.count !== null), [games]);
   const totalPlayers = steamCounted.length ? steamCounted.reduce((s, g) => s + (g.count ?? 0), 0) : null;
   const topGame = steamCounted[0]?.name ?? "—";
@@ -155,9 +142,6 @@ export default function SteamGamesPanel() {
             ) : (
               <span className="text-[9px] text-[#6B7280]" data-testid="steam-status">Steam counts unavailable</span>
             )}
-            <span className="flex items-center gap-1 text-[9px] text-[#9B6DFF]">
-              <span className="w-2 h-2 rounded-full bg-[#9B6DFF]" /> Fortnite estimate
-            </span>
           </div>
         </div>
 
@@ -180,8 +164,8 @@ export default function SteamGamesPanel() {
                     <div className="col-span-1 text-xs text-[#6B7280]">{i + 1}</div>
                     <div className="col-span-4 flex items-center gap-2">
                       <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${game.source === "epic" ? "bg-[#9B6DFF]" : game.count !== null ? "bg-[#4ADE80]" : ""}`}
-                        data-dot={game.source === "epic" ? "estimate" : game.count !== null ? "live" : "none"}
+                        className={`w-2 h-2 rounded-full shrink-0 ${game.count !== null ? "bg-[#4ADE80]" : ""}`}
+                        data-dot={game.count !== null ? "live" : "none"}
                       />
                       <span className="text-sm text-white font-medium truncate" title={game.name}>{game.name}</span>
                     </div>
@@ -190,11 +174,9 @@ export default function SteamGamesPanel() {
                     </div>
                     <div
                       className={`col-span-3 text-right font-['JetBrains_Mono'] text-sm ${game.count === null ? "text-[#6B7280]" : "text-white"}`}
-                      title={game.count === null ? "Steam didn't return a count" : game.source === "epic" ? "Estimate (no public Fortnite count)" : undefined}
+                      title={game.count !== null ? undefined : game.source === "epic" ? "No public Fortnite player count" : "Steam didn't return a count"}
                     >
-                      {game.source === "epic" && game.count !== null ? (
-                        <>~{fmt(game.count)} <span className="text-[9px] text-[#9B6DFF] uppercase tracking-wider">est.</span></>
-                      ) : fmt(game.count)}
+                      {fmt(game.count)}
                     </div>
                     <div className="col-span-2">
                       <div className="h-1.5 bg-[#111118] rounded-full overflow-hidden">
@@ -210,7 +192,7 @@ export default function SteamGamesPanel() {
         </>
 
         <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between">
-          <p className="text-[10px] text-[#6B7280]">Counts from Steam's public API. Fortnite is a model estimate.</p>
+          <p className="text-[10px] text-[#6B7280]">Counts from Steam's public API. Fortnite has no public count.</p>
           <button onClick={loadAll} disabled={refreshing} className="text-[10px] text-[#E85D4E] hover:text-white flex items-center gap-1 cursor-pointer bg-transparent border-0">
             <RefreshCw size={10} className={refreshing ? "animate-spin" : undefined} /> Refresh
           </button>

@@ -253,9 +253,9 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                       <Zap size={9} className="text-[#4ADE80]" />
                       {server.latency !== null ? `${server.latency}ms` : "--"}
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1" title="No player count — load is a model, not live lobbies">
                       <Users size={9} />
-                      ~{Math.floor(server.load * 12)} players
+                      —
                     </span>
                     <span className="flex items-center gap-1">
                       <Crosshair size={9} />
