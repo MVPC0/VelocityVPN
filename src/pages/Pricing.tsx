@@ -12,7 +12,7 @@ const plans = [
       '18 reference regions for latency tests',
       'Browser region timing (not ICMP)',
       'Region map with city labels',
-      'Steam player counts + Fortnite estimate',
+      'Live Steam player counts',
       'IP & leak testing tools',
       'Unlimited configs',
       'No ads on the dashboard',
