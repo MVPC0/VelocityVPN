@@ -11,8 +11,8 @@ A free, open-source WireGuard VPN dashboard for gamers. Manage your VPN provider
 - **18 Reference Locations** - Browser HTTP round-trip time to a cloud region near each city (median ± spread; not ICMP ping, not VPN servers)
 - **26 Game Trackers** - Player counts from Steam's public API (shows "—" when Steam doesn't answer; Fortnite shows "—")
 - **Regions** - Reference locations grouped by region (no server load data yet, so nothing is rated or ranked)
-- **IP & Leak Testing** - IP display, DNS leak test, WebRTC leak test, speed test
-- **WireGuard Config Generator** - Real Curve25519 keys, import-ready .conf files
+- **Public IP check** - Shows your current public IP, plus a rough browser speed estimate
+- **WireGuard Config Generator** - Generates your client keypair; builds a .conf from your provider's details
 - **Chrome Extension** - Routes Chrome through your own HTTP/HTTPS/SOCKS5 proxy
 - **Fully Free** - No ads, no tracking, no paid features locked behind paywalls
 
@@ -43,7 +43,7 @@ VelocityVPN is a **management dashboard**, not a VPN service itself. You bring y
 
 - React 19 + TypeScript
 - Tailwind CSS
-- WireGuard config generation with real Curve25519 cryptography
+- WireGuard client keypair generation (Curve25519, tweetnacl); .conf built from your provider's details
 - Steam Web API (via a Netlify Function) for game player counts
 
 ## License

@@ -13,27 +13,11 @@ const plans = [
       'Browser region timing (not ICMP)',
       'Region map with city labels',
       'Live Steam player counts',
-      'IP & leak testing tools',
+      'Public IP check',
       'Unlimited configs',
       'No ads on the dashboard',
     ],
     popular: true,
-  },
-  {
-    name: 'Premium',
-    price: 4.99,
-    period: '/month',
-    badge: 'OR USE ANY PROVIDER',
-    desc: 'Support development. Unlock extras.',
-    features: [
-      'Everything in Free',
-      'Connection analytics & history',
-      'Advanced speed test graphs',
-      'Custom config templates',
-      'Priority support is not staffed yet',
-      'Early access to new features',
-    ],
-    popular: false,
   },
 ];
 
@@ -76,17 +60,11 @@ export default function Pricing() {
           <ArrowRight size={18} className="text-[#4ADE80] shrink-0" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-20 max-w-3xl mx-auto">
+        <div className="grid grid-cols-1 gap-6 mb-20 max-w-md mx-auto">
           {plans.map((plan) => (
             <div key={plan.name} className={`bg-[#0A0A0F] border rounded-2xl p-8 ${plan.popular ? 'border-[#4ADE80]' : 'border-[rgba(255,255,255,0.08)]'}`}>
-              {plan.popular && (
-                <span className="bg-[#4ADE80] text-[#050507] text-xs font-bold px-4 py-1 rounded-full uppercase">Recommended</span>
-              )}
-              {plan.badge && !plan.popular && (
-                <span className="bg-[rgba(155,109,255,0.1)] text-[#9B6DFF] text-xs font-bold px-3 py-1 rounded-full border border-[rgba(155,109,255,0.2)]">{plan.badge}</span>
-              )}
 
-              <h3 className="font-['Archivo'] text-2xl mt-4">{plan.name}</h3>
+              <h3 className="font-['Archivo'] text-2xl">{plan.name}</h3>
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="text-4xl font-['Archivo']">${plan.price}</span>
                 <span className="text-[#6B7280] text-sm">{plan.period}</span>
@@ -95,11 +73,9 @@ export default function Pricing() {
 
               <button
                 onClick={() => navigate('/dashboard')}
-                className={`mt-6 w-full py-3.5 rounded-lg font-medium text-sm uppercase tracking-wider ${
-                  plan.popular ? 'bg-[#4ADE80] hover:bg-[#3ECF71] text-[#050507]' : 'bg-[#111118] border border-[rgba(255,255,255,0.15)] hover:border-[#9B6DFF] text-white'
-                } transition-all cursor-pointer`}
+                className="mt-6 w-full py-3.5 rounded-lg font-medium text-sm uppercase tracking-wider bg-[#4ADE80] hover:bg-[#3ECF71] text-[#050507] transition-all cursor-pointer"
               >
-                {plan.name === 'Free' ? 'Get Started Free' : 'Premium is not for sale yet'}
+                Get Started Free
               </button>
 
               <ul className="mt-6 space-y-2">
@@ -138,8 +114,7 @@ export default function Pricing() {
           <div className="space-y-4">
             {[
               { q: 'Is VelocityVPN actually free?', a: 'Yes. The dashboard is free. You bring your own WireGuard provider. VelocityVPN does not sell VPN bandwidth.' },
-              { q: 'Do I need to pay for a VPN provider?', a: 'No. ProtonVPN, Windscribe, Hide.me, and PrivadoVPN all offer free tiers that work perfectly with VelocityVPN.' },
-              { q: 'What does the Premium plan add?', a: 'Premium supports development and unlocks analytics, advanced graphs, custom templates, and priority support. The core dashboard is fully free.' },
+              { q: 'Do I need to pay for a VPN provider?', a: 'No. ProtonVPN, Windscribe, Hide.me, and PrivadoVPN all offer free tiers; export their WireGuard config and import it here.' },
               { q: 'Will this work on my device?', a: 'Yes. The dashboard works in any browser. Generated configs import into WireGuard on Windows, macOS, Linux, iOS, Android, and routers.' },
               { q: 'Do you log my activity?', a: 'This dashboard does not route your packets. Logging is up to the VPN provider you choose. Email signup, if enabled, stores an account on the app backend.' },
             ].map(({ q, a }) => (

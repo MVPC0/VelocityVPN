@@ -53,7 +53,7 @@ const testimonials: Testimonial[] = [
     bgColor: "bg-[#1a1a3a]",
   },
   {
-    quote: "There is no 24/7 support desk and no paid network. Guest mode unlocks the dashboard. Premium checkout is not live.",
+    quote: "There is no 24/7 support desk and no paid network. Guest mode unlocks the dashboard. There is no paid plan.",
     name: "Product fact",
     role: "Pricing & support",
     game: "Free tool",
