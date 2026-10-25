@@ -50,7 +50,7 @@ interface GameData {
 
 const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-function buildGames(counts: Record<string, number | null> | null): GameData[] {
+function buildGames(counts: Record<string, unknown> | null): GameData[] {
   const list: GameData[] = STEAM_GAMES.map((g) => {
     return { name: g.name, count: steamCount(counts, g.appId), genre: g.genre, source: "steam" as const };
   });
