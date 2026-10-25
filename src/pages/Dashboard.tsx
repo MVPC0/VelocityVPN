@@ -459,7 +459,7 @@ export default function Dashboard() {
             {connection && (
               <div className="bg-[rgba(74,222,128,0.05)] border border-[rgba(74,222,128,0.15)] rounded-xl p-3 flex items-center gap-2">
                 <Activity size={14} className="text-[#4ADE80]" />
-                <span className="text-xs text-[#4ADE80]">Live session active - stats include current connection</span>
+                <span className="text-xs text-[#4ADE80]">Dashboard session active (UI only, not a tunnel). Session count and duration include it.</span>
               </div>
             )}
             <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">

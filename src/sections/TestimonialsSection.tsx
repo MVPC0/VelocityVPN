@@ -29,11 +29,11 @@ const testimonials: Testimonial[] = [
     bgColor: "bg-[#3a1a3a]",
   },
   {
-    quote: "Heat-map vibes (Bot Lobby through Sweaty) are a model from estimated load. They are not live matchmaking data.",
+    quote: "There is no server load data yet, so the Regions tab shows \"—\" for load and doesn't rate or rank cities.",
     name: "Product fact",
-    role: "Heat map",
-    game: "Modeled, not live",
-    initials: "HM",
+    role: "Regions",
+    game: "No load data yet",
+    initials: "RG",
     bgColor: "bg-[#1a3a1a]",
   },
   {
