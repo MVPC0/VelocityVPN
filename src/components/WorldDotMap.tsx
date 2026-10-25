@@ -3,6 +3,7 @@ import { getLandCells, LAND_COLS, LAND_ROWS, MAP_ASPECT, project } from '@/lib/w
 import type { MapCity } from '@/lib/world-map';
 import { layoutLabels } from '@/lib/label-layout';
 import type { LabelPoint } from '@/lib/label-layout';
+import { pausableRafLoop } from '@/lib/animation-pause';
 
 interface WorldDotMapProps {
   cities: MapCity[];
@@ -129,13 +130,11 @@ const WorldDotMap: React.FC<WorldDotMapProps> = ({
 
     type Arc = { ax: number; ay: number; bx: number; by: number; t: number; speed: number };
     const live: Arc[] = [];
-    let frame = 0;
     let visible = true;
     const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
     io.observe(canvas);
 
     const tick = () => {
-      frame = requestAnimationFrame(tick);
       if (!visible) return;
       if (live.length < 6 && Math.random() < 0.025) {
         const a = points[Math.floor(Math.random() * points.length)];
@@ -163,8 +162,9 @@ const WorldDotMap: React.FC<WorldDotMapProps> = ({
         ctx.stroke();
       }
     };
-    tick();
-    return () => { cancelAnimationFrame(frame); io.disconnect(); };
+    // Stops while a latency test runs (see animation-pause), resumes after.
+    const stopLoop = pausableRafLoop(tick);
+    return () => { stopLoop(); io.disconnect(); };
   }, [arcs, reducedMotion, points, size.w, size.h]);
 
   const selected = points.find((p) => p.city.id === selectedId) ?? null;

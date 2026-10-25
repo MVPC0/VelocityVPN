@@ -1,16 +1,18 @@
 import { useId } from 'react';
 import { Info } from 'lucide-react';
-import { MAD_EXPLANATION, formatSpread } from '@/lib/latency';
+import { MAD_EXPLANATION, formatSpread, formatSpreadPm } from '@/lib/latency';
 
 /** Spread text (`± 3.2 ms` / `< 1 ms`) with a hover/focus tooltip explaining MAD. */
-export default function MadSpread({ mad, prefix = '', align = 'right', className = '' }: {
+export default function MadSpread({ mad, prefix = '', align = 'right', className = '', plusMinus = false }: {
   mad: number;
+  /** Always lead with ± (`± < 1 ms`). */
+  plusMinus?: boolean;
   prefix?: string;
   align?: 'right' | 'center';
   className?: string;
 }) {
   const id = useId();
-  const text = formatSpread(mad);
+  const text = plusMinus ? formatSpreadPm(mad) : formatSpread(mad);
   return (
     <span
       tabIndex={0}

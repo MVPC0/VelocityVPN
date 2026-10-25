@@ -18,6 +18,7 @@
 
 import { cityLatencyTargets, latencyTargetLabel, type LatencyTarget } from '@/data/ping-targets';
 import { timedFetch, type Sample } from './timed-fetch';
+import { pauseAnimationsForMeasurement } from './animation-pause';
 import type { WorkerRequest, WorkerResponse } from './latency.worker';
 
 export const TOTAL_REQUESTS = 10;
@@ -102,6 +103,12 @@ export function formatSpread(mad: number, resolutionMs: number = timerResolution
   const floor = Math.max(1, resolutionMs);
   if (mad < floor) return `< ${Math.round(floor)} ms`;
   return `± ${mad} ms`;
+}
+
+/** Spread text that always leads with ±: `± 3.2 ms` or `± < 1 ms` (used under the big number). */
+export function formatSpreadPm(mad: number, resolutionMs: number = timerResolutionMs()): string {
+  const t = formatSpread(mad, resolutionMs);
+  return t.startsWith('±') ? t : `± ${t}`;
 }
 
 export interface LatencyStats {
@@ -239,49 +246,121 @@ export function timeRequest(
 // A busy main thread (WebGL, animations) delays when a fetch() promise is
 // noticed, which inflates samples by up to a frame (measured: +60 ms in
 // headless Chromium with software WebGL). A dedicated worker has its own
-// event loop, so samples are timed there when Workers are available;
-// otherwise (old browsers, CSP refusal, tests) we fall back to the main thread.
+// event loop, so samples are timed there when Workers are available.
+//
+// The worker is strictly optional and can never hang a test:
+//  - no Worker API, or the constructor throws (CSP worker-src, SecurityError)
+//      → main thread
+//  - the worker doesn't answer a startup ping within WORKER_START_TIMEOUT_MS
+//    (script 404, CSP refusal reported asynchronously, broken bundle)
+//      → main thread
+//  - the worker errors, or doesn't answer a sample within
+//    SAMPLE_TIMEOUT_MS + WORKER_REPLY_GRACE_MS → worker is discarded and that
+//    sample is redone on the main thread; later samples use the main thread.
+// Once the worker has failed it isn't retried this page load.
 
-let worker: Worker | null = null;
-let workerBroken = typeof Worker === 'undefined';
+/** How long the worker gets to answer its startup ping. */
+export const WORKER_START_TIMEOUT_MS = 1500;
+/** Extra time over the per-sample timeout before a silent worker is abandoned. */
+export const WORKER_REPLY_GRACE_MS = 1000;
+
+type WorkerLike = Pick<Worker, 'postMessage' | 'terminate' | 'addEventListener'>;
+
+const defaultWorkerFactory = (): WorkerLike =>
+  new Worker(new URL('./latency.worker.ts', import.meta.url), { type: 'module' });
+
+let workerFactory: (() => WorkerLike) | null = typeof Worker === 'undefined' ? null : defaultWorkerFactory;
+let workerReady: Promise<WorkerLike | null> | null = null;
+let workerBroken = false;
 let nextId = 1;
 const pending = new Map<number, (s: Sample | null) => void>();
 
-function getWorker(): Worker | null {
-  if (workerBroken) return null;
-  if (worker) return worker;
-  try {
-    worker = new Worker(new URL('./latency.worker.ts', import.meta.url), { type: 'module' });
-    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
-      pending.get(e.data.id)?.(e.data.sample);
-      pending.delete(e.data.id);
-    };
-    worker.onerror = () => {
-      workerBroken = true;
-      worker?.terminate();
-      worker = null;
-      for (const resolve of pending.values()) resolve(null);
-      pending.clear();
-    };
-    return worker;
-  } catch {
-    workerBroken = true;
-    return null;
-  }
+function discardWorker(w: WorkerLike | null) {
+  workerBroken = true;
+  try { w?.terminate(); } catch { /* already gone */ }
+  for (const resolve of pending.values()) resolve(null);
+  pending.clear();
+}
+
+function startWorker(): Promise<WorkerLike | null> {
+  if (workerBroken || !workerFactory) return Promise.resolve(null);
+  if (workerReady) return workerReady;
+  const factory = workerFactory;
+  workerReady = new Promise<WorkerLike | null>((resolve) => {
+    let w: WorkerLike;
+    try {
+      w = factory();
+    } catch {
+      discardWorker(null);
+      resolve(null);
+      return;
+    }
+    const timer = setTimeout(() => { discardWorker(w); resolve(null); }, WORKER_START_TIMEOUT_MS);
+    w.addEventListener('message', (e: MessageEvent<WorkerResponse>) => {
+      if (e.data?.type === 'pong') {
+        clearTimeout(timer);
+        resolve(w);
+        return;
+      }
+      const done = pending.get(e.data?.id);
+      pending.delete(e.data?.id);
+      done?.(e.data.sample ?? null);
+    });
+    w.addEventListener('error', () => { clearTimeout(timer); discardWorker(w); resolve(null); });
+    w.addEventListener('messageerror', () => { clearTimeout(timer); discardWorker(w); resolve(null); });
+    try {
+      w.postMessage({ type: 'ping' } satisfies WorkerRequest);
+    } catch {
+      clearTimeout(timer);
+      discardWorker(w);
+      resolve(null);
+    }
+  });
+  return workerReady;
+}
+
+/** Test hook: replace (or with `null`, disable) the latency worker and reset its state. */
+export function _setLatencyWorkerFactory(factory: (() => WorkerLike) | null): void {
+  workerFactory = factory;
+  workerReady = null;
+  workerBroken = false;
+  pending.clear();
+}
+
+/** True if the worker path has been abandoned this page load. */
+export function latencyWorkerFailed(): boolean {
+  return workerBroken;
 }
 
 /** Time one request in the latency worker, falling back to the main thread. */
 async function sampleRequest(target: LatencyTarget, signal?: AbortSignal): Promise<Sample> {
-  const w = getWorker();
+  const w = await startWorker();
   if (!w) return timeRequest(target, signal);
   if (signal?.aborted) return { ms: null, error: 'aborted' };
   const id = nextId++;
   const result = await new Promise<Sample | null>((resolve) => {
-    pending.set(id, resolve);
-    signal?.addEventListener('abort', () => w.postMessage({ type: 'abort', id } satisfies WorkerRequest), { once: true });
-    w.postMessage({ type: 'time', id, url: bustedUrl(target), mode: target.mode, timeoutMs: SAMPLE_TIMEOUT_MS } satisfies WorkerRequest);
+    const finish = (s: Sample | null) => {
+      clearTimeout(watchdog);
+      signal?.removeEventListener('abort', onAbort);
+      pending.delete(id);
+      resolve(s);
+    };
+    const onAbort = () => {
+      try { w.postMessage({ type: 'abort', id } satisfies WorkerRequest); } catch { /* worker gone */ }
+      finish({ ms: null, error: 'aborted' });
+    };
+    // A worker that goes silent is abandoned rather than waited on forever.
+    const watchdog = setTimeout(() => { discardWorker(w); }, SAMPLE_TIMEOUT_MS + WORKER_REPLY_GRACE_MS);
+    pending.set(id, finish);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    try {
+      w.postMessage({ type: 'time', id, url: bustedUrl(target), mode: target.mode, timeoutMs: SAMPLE_TIMEOUT_MS } satisfies WorkerRequest);
+    } catch {
+      discardWorker(w);
+    }
   });
-  // null → the worker died (e.g. blocked by CSP); redo this sample on the main thread.
+  if (signal?.aborted) return { ms: null, error: 'aborted' };
+  // null → the worker died or went silent; redo this sample on the main thread.
   return result ?? timeRequest(target, signal);
 }
 
@@ -320,6 +399,15 @@ export async function measureTarget(
  * fails, the result is `unavailable` with no stats.
  */
 export async function measureCityLatency(cityId: number, opts: MeasureOptions = {}): Promise<LatencyResult> {
+  const resume = pauseAnimationsForMeasurement();
+  try {
+    return await measureCityLatencyInner(cityId, opts);
+  } finally {
+    resume();
+  }
+}
+
+async function measureCityLatencyInner(cityId: number, opts: MeasureOptions): Promise<LatencyResult> {
   const targets = cityLatencyTargets(cityId);
   const attempts: TargetAttempt[] = [];
   let shaky: TargetAttempt | null = null;

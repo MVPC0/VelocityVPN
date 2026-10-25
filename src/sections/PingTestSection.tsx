@@ -246,7 +246,7 @@ const PingTestSection: React.FC = () => {
                         </div>
                         {stats && (
                           <div className="mt-1 text-xs text-[#9CA3AF] font-['JetBrains_Mono']">
-                            median <MadSpread mad={stats.mad} align="center" />
+                            <MadSpread mad={stats.mad} align="center" plusMinus />
                           </div>
                         )}
                         {status === 'unreliable' && result?.note && (

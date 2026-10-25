@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { pausableRafLoop } from '@/lib/animation-pause';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -130,15 +131,10 @@ const SpeedStepsSection: React.FC = () => {
     window.addEventListener('resize', handleResize);
 
     // Render loop
-    let animId: number;
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    };
-    animate();
+    const stopLoop = pausableRafLoop(() => renderer.render(scene, camera));
 
     return () => {
-      cancelAnimationFrame(animId);
+      stopLoop();
       window.removeEventListener('resize', handleResize);
       geometry.dispose();
       allMaterials.forEach((m: THREE.MeshStandardMaterial) => {

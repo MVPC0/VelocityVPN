@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  assessSamples, formatSpread, median, medianAbsoluteDeviation, measureCityLatency, measureTarget,
+  assessSamples, formatSpread, formatSpreadPm, median, medianAbsoluteDeviation, measureCityLatency, measureTarget,
   MIN_OK_SAMPLES, physicsFloorMs, timeRequest, TOTAL_REQUESTS, type Sample,
 } from './latency';
 import { cityLatencyTargets, latencyHeadlineLabel } from '@/data/ping-targets';
@@ -188,6 +188,9 @@ describe('display copy', () => {
     expect(formatSpread(0.5, 1)).toBe('< 1 ms');
     expect(formatSpread(0.5, 0.1)).toBe('< 1 ms');
     expect(formatSpread(2.3, 0.1)).toBe('± 2.3 ms');
+    // label under the big number always leads with ±
+    expect(formatSpreadPm(0.5, 0.1)).toBe('± < 1 ms');
+    expect(formatSpreadPm(2.3, 0.1)).toBe('± 2.3 ms');
   });
 
   it('result labels name the datacenter honestly', () => {

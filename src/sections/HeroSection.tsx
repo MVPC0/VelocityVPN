@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { Link } from 'react-router';
 import * as THREE from 'three';
 import CountUp from 'react-countup';
+import { pausableRafLoop } from '@/lib/animation-pause';
 
 // Brand
 const CORAL = new THREE.Color('#E85D4E');
@@ -200,7 +201,6 @@ const HeroSection: React.FC = () => {
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const globeRef = useRef<THREE.Points | null>(null);
   const cityDirsRef = useRef<THREE.Vector3[]>([]);
-  const animFrameRef = useRef(0);
   const startTimeRef = useRef(0);
   const pingRef = useRef({ t: 0, dir: new THREE.Vector3(1, 0, 0), i: 0 });
   const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
@@ -328,8 +328,6 @@ const HeroSection: React.FC = () => {
     const ndc = new THREE.Vector2();
 
     const animate = () => {
-      animFrameRef.current = requestAnimationFrame(animate);
-
       const renderer = rendererRef.current;
       const scene = sceneRef.current;
       const camera = cameraRef.current;
@@ -401,10 +399,11 @@ const HeroSection: React.FC = () => {
       renderer.render(scene, camera);
     };
 
-    animate();
+    // Stops while a latency test runs (see animation-pause), resumes after.
+    const stopLoop = pausableRafLoop(animate);
 
     return () => {
-      cancelAnimationFrame(animFrameRef.current);
+      stopLoop();
       cleanup?.();
       rendererRef.current?.dispose();
       materialRef.current?.dispose();
