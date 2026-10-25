@@ -21,7 +21,7 @@ import {
 } from "@/hooks/useProviderConfig";
 import { useVpnDetector } from "@/hooks/useVpnDetector";
 import { runCityLatency, useLatencyResults } from "@/hooks/useCityLatency";
-import { LATENCY_NOTE, formatSpread, latencyColor, type LatencyResult } from "@/lib/latency";
+import { LATENCY_NOTE, formatSpreadPm, latencyColor, type LatencyResult } from "@/lib/latency";
 import MadSpread from "@/components/MadSpread";
 import EstimateTag from "@/components/EstimateTag";
 import { latencyHeadlineLabel, latencyTargetLabel, primaryLatencyTarget, REFERENCE_DC_NOTE } from "@/data/ping-targets";
@@ -95,7 +95,7 @@ function LatencyBadge({ result }: { result: LatencyResult | undefined }) {
   return (
     <>
       <div className="font-['JetBrains_Mono'] text-sm" style={{ color: result.status === "unreliable" ? "#FBBF24" : latencyColor(median) }}>{median}ms</div>
-      <div className="text-[10px] text-[#6B7280]"><MadSpread mad={mad} />{result.status === "unreliable" ? " · unreliable" : ""}</div>
+      <div className="text-[10px] text-[#6B7280]"><MadSpread mad={mad} plusMinus />{result.status === "unreliable" ? " · unreliable" : ""}</div>
     </>
   );
 }
@@ -469,7 +469,7 @@ export default function Dashboard() {
                       <span className="text-sm">{getFlag(s.countryCode)}</span>
                       <span className="text-xs text-white font-medium">{s.city}</span>
                     </div>
-                    <div className="font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF]">{latency.get(s.id)?.status === "unavailable" ? "Unavailable" : s.latency !== null ? `${s.latency} ms ${formatSpread(s.spread ?? 0)}` : "-- ms"}</div>
+                    <div className="font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF]">{latency.get(s.id)?.status === "unavailable" ? "Unavailable" : s.latency !== null ? `${s.latency} ms ${formatSpreadPm(s.spread ?? 0)}` : "-- ms"}</div>
                   </div>
                 ))}
               </div>

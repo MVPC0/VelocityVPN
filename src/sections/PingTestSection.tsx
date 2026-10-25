@@ -299,7 +299,7 @@ const PingTestSection: React.FC = () => {
                         <>
                           <div className="flex justify-between items-center gap-3">
                             <span className="text-[#6B7280] text-sm">Spread (MAD)</span>
-                            <span className="text-white text-sm font-['JetBrains_Mono']"><MadSpread mad={stats.mad} /></span>
+                            <span className="text-white text-sm font-['JetBrains_Mono']"><MadSpread mad={stats.mad} plusMinus /></span>
                           </div>
                           <div className="flex justify-between items-center gap-3">
                             <span className="text-[#6B7280] text-sm">Fastest</span>
