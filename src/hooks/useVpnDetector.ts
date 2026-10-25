@@ -17,7 +17,7 @@ export interface VpnStatus {
 }
 
 const STORAGE_KEY = "velocityvpn_homeip";
-const POLL_INTERVAL = 5000; // Check every 5 seconds
+const POLL_INTERVAL = 15000; // Check every 15 seconds (the UI says so; also gentler on ipapi.co rate limits)
 
 function loadHomeIp(): string | null {
   try {

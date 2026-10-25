@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
-  Shield, Zap, Power, Clock, ArrowDown, ArrowUp,
   Activity, Server, RefreshCw, ChevronLeft, Download,
-  Globe, Lock, Gamepad2, ScanLine,
+  Globe, Gamepad2, ScanLine,
   HelpCircle, Puzzle, Key, LogIn, X,
   Smartphone, Wifi, AlertTriangle, CheckCircle2,
   Check, Loader2, Info
@@ -39,14 +38,6 @@ interface VPNServer {
   protocol: string;
 }
 
-interface Connection {
-  server: VPNServer; assignedIp: string; connectedAt: Date; protocol: string;
-}
-
-interface SessionRecord {
-  server: VPNServer; duration: number; date: Date; status: string;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────
 
 const INITIAL_SERVERS: VPNServer[] = VELOCITY_SERVERS.map((s) => ({
@@ -57,12 +48,6 @@ const INITIAL_SERVERS: VPNServer[] = VELOCITY_SERVERS.map((s) => ({
   protocol: "wireguard",
 }));
 
-function formatDuration(s: number) {
-  const m = Math.floor(s / 60), h = Math.floor(m / 60);
-  return h > 0 ? `${h}h ${m % 60}m ${s % 60}s` : `${m}m ${s % 60}s`;
-}
-// Traffic flows through the WireGuard app, not this page, so bytes aren't tracked here.
-const NOT_TRACKED = "—";
 
 function downloadText(filename: string, text: string) {
   const blob = new Blob([text], { type: "text/plain" });
@@ -112,21 +97,15 @@ export default function Dashboard() {
     return { ...s, latency: st?.median ?? null, spread: st?.mad ?? null };
   }), [baseServers, latency]);
   const [selectedServerId, setSelectedServerId] = useState<number | null>(null);
-  const [connection, setConnection] = useState<Connection | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [activeTab, setActiveTab] = useState<"servers" | "heat" | "stats" | "history" | "games" | "tools" | "providers">("servers");
+  const [activeTab, setActiveTab] = useState<"servers" | "heat" | "stats" | "games" | "tools" | "providers">("servers");
   const providerState = useProviderConfig();
-  const { activeProvider, providers } = providerState;
+  const { activeProvider } = providerState;
   const providerReady = isProviderConfigComplete(activeProvider);
   const vpnDetector = useVpnDetector();
   const [showQR, setShowQR] = useState(false);
   const [showHowTo, setShowHowTo] = useState(false);
   const [showProviderRequired, setShowProviderRequired] = useState(false);
   const [isTestingAll, setIsTestingAll] = useState(false);
-  const [history, setHistory] = useState<SessionRecord[]>([]);
-  const [stats, setStats] = useState({ totalSessions: 0, totalDuration: 0 });
 
   // Auto-select first server
   useEffect(() => {
@@ -134,66 +113,6 @@ export default function Dashboard() {
       setSelectedServerId(servers[0].id);
     }
   }, [selectedServerId, servers]);
-
-  // Duration counter
-  useEffect(() => {
-    if (!connection) { setElapsed(0); return; }
-    const tick = () => setElapsed(Math.floor((Date.now() - connection.connectedAt.getTime()) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [connection]);
-
-  const handleConnect = useCallback(() => {
-    if (!selectedServerId) return;
-    // A session needs the user's own provider details (peer key + endpoint)
-    if (!isProviderConfigComplete(activeProvider)) {
-      setShowProviderRequired(true);
-      return;
-    }
-    const server = servers.find((s) => s.id === selectedServerId);
-    if (!server) return;
-    setIsConnecting(true);
-    // Check if VPN is actually active by fetching public IP
-    fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(5000) })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) {
-          // Store the detected IP info so we can show real connection status
-          (window as Window & { __vpnIpInfo?: unknown }).__vpnIpInfo = data;
-        }
-        setConnection({
-          server,
-          assignedIp: activeProvider.clientIp,
-          connectedAt: new Date(),
-          protocol: server.protocol,
-        });
-      })
-      .catch(() => {
-        // UI session only. This does not create a WireGuard tunnel.
-        setConnection({
-          server,
-          assignedIp: activeProvider.clientIp,
-          connectedAt: new Date(),
-          protocol: server.protocol,
-        });
-      })
-      .finally(() => {
-        setIsConnecting(false);
-      });
-  }, [selectedServerId, servers, activeProvider]);
-
-  const handleDisconnect = useCallback(() => {
-    if (!connection) return;
-    setIsDisconnecting(true);
-    setTimeout(() => {
-      const dur = elapsed;
-      setHistory((prev) => [{ server: connection.server, duration: dur, date: new Date(), status: "disconnected" }, ...prev]);
-      setStats((p) => ({ totalSessions: p.totalSessions + 1, totalDuration: p.totalDuration + dur }));
-      setConnection(null);
-      setIsDisconnecting(false);
-    }, 600);
-  }, [connection, elapsed]);
 
   const testAll = useCallback(async () => {
     setIsTestingAll(true);
@@ -233,12 +152,9 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             {vpnDetector.isVpnActive && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[rgba(74,222,128,0.1)] rounded-full border border-[rgba(74,222,128,0.2)]">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#4ADE80] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#4ADE80]" />
-                </span>
-                <span className="text-[#4ADE80] text-xs font-medium">VPN Active</span>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[rgba(163,184,212,0.1)] rounded-full border border-[rgba(163,184,212,0.2)]" title="Your public IP differs from your saved home IP">
+                <span className="inline-flex rounded-full h-2 w-2 bg-[#A3B8D4]" />
+                <span className="text-[#A3B8D4] text-xs font-medium">Public IP changed</span>
               </div>
             )}
             <button onClick={() => navigate("/login")} className="text-xs text-[#E85D4E] hover:text-white transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-0">
@@ -267,20 +183,16 @@ export default function Dashboard() {
         <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${vpnDetector.isVpnActive ? "bg-[rgba(74,222,128,0.15)]" : connection ? "bg-[rgba(74,222,128,0.1)]" : "bg-[rgba(255,255,255,0.05)]"}`}>
-                {vpnDetector.isVpnActive ? <Wifi size={24} className="text-[#4ADE80]" /> : connection ? <Shield size={24} className="text-[#4ADE80]" /> : <Shield size={24} className="text-[#6B7280]" />}
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${vpnDetector.isVpnActive ? "bg-[rgba(163,184,212,0.15)]" : "bg-[rgba(255,255,255,0.05)]"}`}>
+                {vpnDetector.isVpnActive ? <Wifi size={24} className="text-[#A3B8D4]" /> : <Globe size={24} className="text-[#6B7280]" />}
               </div>
               <div>
                 <h2 className="font-['Archivo'] text-xl tracking-tight">
-                  {vpnDetector.isVpnActive ? "Public IP looks like a VPN" : connection ? "Dashboard session only - not a tunnel" : "No dashboard session"}
+                  {vpnDetector.isVpnActive ? "Your public IP changed" : providerReady ? "Config ready" : "No provider config yet"}
                 </h2>
                 <p className="text-[#9CA3AF] text-sm mt-0.5">
                   {vpnDetector.isVpnActive
-                    ? `${vpnDetector.currentCity ?? "Unknown"} - ${vpnDetector.currentIp ?? "..."}`
-                    : connection
-                    ? activeProvider
-                      ? `${activeProvider.name} - ${formatDuration(elapsed)}`
-                      : `${connection.server.city} - ${formatDuration(elapsed)}`
+                    ? `${vpnDetector.currentIp ?? "..."} (${vpnDetector.currentCity ?? "unknown location"}) differs from your saved home IP`
                     : providerReady
                     ? `${activeProvider.name} ready - download the config or scan the QR into WireGuard`
                     : "Add your provider's WireGuard details to get a config"}
@@ -297,18 +209,8 @@ export default function Dashboard() {
               ) : (
                 <button onClick={vpnDetector.setHomeIp}
                   className="px-4 py-3 bg-[rgba(155,109,255,0.15)] text-[#9B6DFF] border border-[rgba(155,109,255,0.3)] rounded-lg font-medium hover:bg-[rgba(155,109,255,0.25)] transition-all flex items-center gap-2 text-sm cursor-pointer"
-                  title="Save current IP as your home IP (turn VPN OFF first)">
-                  <Shield size={16} /> Set Home IP
-                </button>
-              )}
-              <button onClick={handleConnect} disabled={isConnecting || !!connection}
-                className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 text-sm transition-all border-0 ${connection ? "bg-[rgba(74,222,128,0.15)] text-[#4ADE80] border border-[#4ADE80]" : isConnecting ? "bg-[#E85D4E]/70 text-white" : "bg-[#E85D4E] text-white hover:bg-[#D44A3C]"} ${(isConnecting || !!connection) ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}>
-                <Power size={16} /> {isConnecting ? "Connecting..." : connection ? "Connected" : "Connect"}
-              </button>
-              {connection && (
-                <button onClick={handleDisconnect} disabled={isDisconnecting}
-                  className="px-6 py-3 bg-[rgba(239,68,68,0.15)] text-[#EF4444] border border-[rgba(239,68,68,0.3)] rounded-lg font-medium hover:bg-[rgba(239,68,68,0.25)] transition-all flex items-center gap-2 text-sm cursor-pointer disabled:opacity-50">
-                  <Zap size={16} /> {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                  title="Save your current public IP as home (turn any VPN off first)">
+                  <Globe size={16} /> Set Home IP
                 </button>
               )}
               <button onClick={() => setShowHowTo(true)} className="hidden sm:flex px-4 py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#9CA3AF] rounded-lg text-xs items-center gap-2 cursor-pointer hover:border-[#9B6DFF]">
@@ -331,45 +233,14 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {connection && (
-            <div className="mt-5 pt-5 border-t border-[rgba(255,255,255,0.08)]">
-              {/* Active Provider Banner */}
-              {activeProvider && (
-                <div className={`rounded-xl p-3 mb-3 flex items-center gap-3 border ${vpnDetector.isVpnActive ? "bg-[rgba(74,222,128,0.05)] border-[rgba(74,222,128,0.15)]" : connection ? "bg-[rgba(74,222,128,0.05)] border-[rgba(74,222,128,0.15)]" : "bg-[rgba(251,191,36,0.05)] border-[rgba(251,191,36,0.15)]"}`}>
-                  <Globe size={16} className={`shrink-0 ${vpnDetector.isVpnActive || connection ? "text-[#4ADE80]" : "text-[#FBBF24]"}`} />
-                  <div className="min-w-0">
-                    <div className={`text-xs font-semibold ${vpnDetector.isVpnActive || connection ? "text-[#4ADE80]" : "text-[#FBBF24]"}`}>
-                      {activeProvider.name} {vpnDetector.isVpnActive ? "- VPN Active" : connection ? "- Active" : "- Ready"}
-                    </div>
-                    <div className="text-[10px] text-[#6B7280] font-['JetBrains_Mono'] truncate">{activeProvider.wgEndpoint}</div>
-                  </div>
-                  <span className={`ml-auto px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${vpnDetector.isVpnActive ? "bg-[rgba(74,222,128,0.1)] text-[#4ADE80]" : connection ? "bg-[rgba(74,222,128,0.1)] text-[#4ADE80]" : "bg-[rgba(251,191,36,0.1)] text-[#FBBF24]"}`}>
-                    {vpnDetector.isVpnActive ? "WireGuard ON" : connection ? "Dashboard" : "Config Ready"}
-                  </span>
-                </div>
-              )}
-              {!activeProvider && providers.length > 0 && (
-                <div className="bg-[rgba(163,184,212,0.05)] border border-[rgba(163,184,212,0.15)] rounded-xl p-3 mb-3 flex items-center gap-3">
-                  <Info size={16} className="text-[#A3B8D4] shrink-0" />
-                  <div className="text-xs text-[#9CA3AF]">Go to the <button onClick={() => setActiveTab("providers")} className="text-[#FBBF24] hover:underline cursor-pointer bg-transparent border-0 p-0 font-medium">Providers</button> tab to activate a config.</div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><Clock size={10} /> Duration</div><div className="font-['JetBrains_Mono'] text-base text-white">{formatDuration(elapsed)}</div></div>
-                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><ArrowDown size={10} /> Download</div><div className="font-['JetBrains_Mono'] text-base text-[#4ADE80]" title="Traffic goes through the WireGuard app, not this page">{NOT_TRACKED}</div></div>
-                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><ArrowUp size={10} /> Upload</div><div className="font-['JetBrains_Mono'] text-base text-[#A3B8D4]" title="Traffic goes through the WireGuard app, not this page">{NOT_TRACKED}</div></div>
-                <div className="bg-[#111118] rounded-xl p-3"><div className="flex items-center gap-1.5 text-[#6B7280] text-xs mb-1"><Activity size={10} /> Protocol</div><div className="font-['JetBrains_Mono'] text-base text-white uppercase">{connection.protocol}</div></div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {(["servers", "heat", "stats", "history", "games", "tools", "providers"] as const).map((tab) => (
+          {(["servers", "heat", "stats", "games", "tools", "providers"] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-[#E85D4E] text-white" : "text-[#9CA3AF] hover:text-white"} flex items-center gap-1.5 shrink-0`}>
-              {tab === "servers" ? <><Server size={13} /> Locations</> : tab === "heat" ? <><Globe size={13} /> Regions</> : tab === "stats" ? <><Activity size={13} /> Stats</> : tab === "history" ? <><Clock size={13} /> History</> : tab === "games" ? <><Gamepad2 size={13} /> Games</> : tab === "providers" ? <><Globe size={13} /> Providers</> : <><ScanLine size={13} /> Tools</>}
+              {tab === "servers" ? <><Server size={13} /> Locations</> : tab === "heat" ? <><Globe size={13} /> Regions</> : tab === "stats" ? <><Activity size={13} /> Stats</> : tab === "games" ? <><Gamepad2 size={13} /> Games</> : tab === "providers" ? <><Globe size={13} /> Providers</> : <><ScanLine size={13} /> Tools</>}
             </button>
           ))}
         </div>
@@ -391,11 +262,10 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {servers.map((server) => {
                 const isSel = selectedServerId === server.id;
-                const isConn = connection?.server.id === server.id;
                 return (
                   <div key={server.id}
-                    onClick={() => { if (!connection) setSelectedServerId(server.id); }}
-                    className={`relative bg-[#0A0A0F] border rounded-xl p-4 transition-all ${isConn ? "border-[#4ADE80] bg-[rgba(74,222,128,0.05)]" : isSel ? "border-[#E85D4E]" : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]"} cursor-pointer`}>
+                    onClick={() => setSelectedServerId(server.id)}
+                    className={`relative bg-[#0A0A0F] border rounded-xl p-4 transition-all ${isSel ? "border-[#E85D4E]" : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]"} cursor-pointer`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{getFlag(server.countryCode)}</span>
@@ -436,32 +306,6 @@ export default function Dashboard() {
         {/* Stats Tab */}
         {activeTab === "stats" && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><Activity size={10} /> Sessions</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-white">{stats.totalSessions + (connection ? 1 : 0)}</div>
-              </div>
-              <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><Clock size={10} /> Duration</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-white">{formatDuration(stats.totalDuration + (connection ? elapsed : 0))}</div>
-              </div>
-              <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><ArrowDown size={10} /> Received</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-[#4ADE80]">{NOT_TRACKED}</div>
-                <div className="text-[10px] text-[#6B7280] mt-1">See the WireGuard app</div>
-              </div>
-              <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 text-center">
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] uppercase tracking-wider mb-1"><ArrowUp size={10} /> Sent</div>
-                <div className="font-['JetBrains_Mono'] text-2xl text-[#A3B8D4]">{NOT_TRACKED}</div>
-                <div className="text-[10px] text-[#6B7280] mt-1">See the WireGuard app</div>
-              </div>
-            </div>
-            {connection && (
-              <div className="bg-[rgba(74,222,128,0.05)] border border-[rgba(74,222,128,0.15)] rounded-xl p-3 flex items-center gap-2">
-                <Activity size={14} className="text-[#4ADE80]" />
-                <span className="text-xs text-[#4ADE80]">Dashboard session active (UI only, not a tunnel). Session count and duration include it.</span>
-              </div>
-            )}
             <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
               <h3 className="font-['Archivo'] text-base tracking-tight mb-3">Reference Location Latency</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -476,37 +320,6 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* History Tab */}
-        {activeTab === "history" && (
-          <div className="space-y-4">
-            <h3 className="font-['Archivo'] text-lg tracking-tight">Connection History</h3>
-            {history.length === 0 ? (
-              <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-8 text-center text-[#6B7280]">
-                <Clock size={32} className="mx-auto mb-2 opacity-30" />
-                <p>No connection history yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {history.map((h, i) => (
-                  <div key={i} className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{getFlag(h.server.countryCode)}</span>
-                      <div>
-                        <div className="text-sm text-white font-medium">{h.server.city}</div>
-                        <div className="text-[10px] text-[#6B7280]">{h.date.toLocaleString()}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-[#4ADE80]">{formatDuration(h.duration)}</div>
-                      <div className="text-[10px] text-[#6B7280]">Dashboard session</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -583,11 +396,11 @@ function ToolsTab({ downloadWireGuardConfig, openQR, providerReady, goToProvider
 }) {
   const [speedPhase, setSpeedPhase] = useState<"idle" | "running" | "done">("idle");
   const [speedResult, setSpeedResult] = useState<{ download: number; upload: number; latency: number } | null>(null);
-  // Real VPN detection: 3 states
-  // 1. No baseline → UNKNOWN (need to set home IP with VPN off)
-  // 2. Has baseline, IP matches → EXPOSED
-  // 3. Has baseline, IP differs → PROTECTED (VPN active)
-  const isProtected = vpnDetector.isVpnActive;
+  // Public-IP comparison only, 3 states. The browser can't see a tunnel or encryption.
+  // 1. No saved home IP → needs setup
+  // 2. Saved home IP, current IP matches → same as home
+  // 3. Saved home IP, current IP differs → IP changed (a VPN is one possible reason)
+  const ipChanged = vpnDetector.isVpnActive;
   const needsBaseline = !vpnDetector.hasBaseline;
 
   const runSpeedTest = useCallback(async () => {
@@ -638,27 +451,25 @@ function ToolsTab({ downloadWireGuardConfig, openQR, providerReady, goToProvider
       </div>
 
       {/* IP Display */}
-      <div className={`rounded-2xl p-5 border ${isProtected ? "bg-[rgba(74,222,128,0.03)] border-[rgba(74,222,128,0.2)]" : needsBaseline ? "bg-[#0A0A0F] border-[rgba(251,191,36,0.2)]" : "bg-[#0A0A0F] border-[rgba(255,255,255,0.08)]"}`}>
-        {/* Protection Status Banner */}
-        <div className={`flex items-center gap-3 mb-4 p-3 rounded-xl ${isProtected ? "bg-[rgba(74,222,128,0.08)]" : needsBaseline ? "bg-[rgba(251,191,36,0.08)]" : "bg-[rgba(239,68,68,0.08)]"}`}>
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isProtected ? "bg-[rgba(74,222,128,0.15)]" : needsBaseline ? "bg-[rgba(251,191,36,0.15)]" : "bg-[rgba(239,68,68,0.15)]"}`}>
-            {isProtected ? <Shield size={20} className="text-[#4ADE80]" /> : needsBaseline ? <Wifi size={20} className="text-[#FBBF24]" /> : <AlertTriangle size={20} className="text-[#EF4444]" />}
+      <div className={`rounded-2xl p-5 border ${ipChanged ? "bg-[rgba(163,184,212,0.03)] border-[rgba(163,184,212,0.2)]" : needsBaseline ? "bg-[#0A0A0F] border-[rgba(251,191,36,0.2)]" : "bg-[#0A0A0F] border-[rgba(255,255,255,0.08)]"}`}>
+        {/* Public IP comparison banner */}
+        <div className={`flex items-center gap-3 mb-4 p-3 rounded-xl ${ipChanged ? "bg-[rgba(163,184,212,0.08)]" : needsBaseline ? "bg-[rgba(251,191,36,0.08)]" : "bg-[rgba(255,255,255,0.04)]"}`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${ipChanged ? "bg-[rgba(163,184,212,0.15)]" : needsBaseline ? "bg-[rgba(251,191,36,0.15)]" : "bg-[rgba(255,255,255,0.08)]"}`}>
+            {ipChanged ? <Wifi size={20} className="text-[#A3B8D4]" /> : needsBaseline ? <Wifi size={20} className="text-[#FBBF24]" /> : <Globe size={20} className="text-[#9CA3AF]" />}
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className={`text-sm font-bold ${isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#EF4444]"}`}>
-                {isProtected ? "VPN ACTIVE" : needsBaseline ? "UNKNOWN" : "EXPOSED"}
+              <span className={`text-sm font-bold ${ipChanged ? "text-[#A3B8D4]" : needsBaseline ? "text-[#FBBF24]" : "text-[#D1D5DB]"}`}>
+                {ipChanged ? "Your public IP changed" : needsBaseline ? "Home IP not set" : "Same as your saved home IP"}
               </span>
-              {isProtected && <span className="text-[9px] font-bold text-[#050507] bg-[#4ADE80] px-2 py-0.5 rounded-full">WIREGUARD</span>}
-              {!isProtected && !needsBaseline && <span className="text-[9px] font-bold text-[#050507] bg-[#EF4444] px-2 py-0.5 rounded-full">NO VPN</span>}
               {needsBaseline && <span className="text-[9px] font-bold text-[#050507] bg-[#FBBF24] px-2 py-0.5 rounded-full">SETUP</span>}
             </div>
             <p className="text-xs text-[#9CA3AF] mt-0.5">
-              {isProtected
-                ? `Your IP changed from home address. WireGuard VPN is routing your traffic through ${vpnDetector.currentCity ?? "remote server"}.`
+              {ipChanged
+                ? `Your public IP differs from your saved home IP (now ${vpnDetector.currentCity ?? "unknown location"}). A VPN is one common reason; switching networks is another. This check only compares IPs.`
                 : needsBaseline
-                ? "Turn WireGuard OFF, then click 'Set Home IP' below to establish your baseline. Then turn VPN back on to detect it."
-                : "Your real IP matches your home address. WireGuard is OFF - your traffic is not encrypted."}
+                ? "With any VPN off, click 'Set Home IP' below to save your current public IP. The dashboard then shows when your public IP changes."
+                : "Your public IP matches your saved home IP. This check only compares IPs; it can't see whether traffic is encrypted."}
             </p>
           </div>
         </div>
@@ -667,12 +478,12 @@ function ToolsTab({ downloadWireGuardConfig, openQR, providerReady, goToProvider
           <div className="mb-4">
             <button onClick={vpnDetector.setHomeIp}
               className="w-full py-3 bg-[#FBBF24] text-[#050507] rounded-lg text-xs font-bold cursor-pointer border-0 hover:bg-[#F5A623] flex items-center justify-center gap-2">
-              <Shield size={14} /> Set Home IP (WireGuard must be OFF)
+              <Globe size={14} /> Set Home IP (turn any VPN off first)
             </button>
-            <p className="text-[10px] text-[#6B7280] mt-2 text-center">This saves your current IP as "home." After saving, turn WireGuard ON and the dashboard will detect it.</p>
+            <p className="text-[10px] text-[#6B7280] mt-2 text-center">This saves your current public IP as "home." If your public IP later changes, the dashboard will show it.</p>
           </div>
         )}
-        {isProtected && (
+        {ipChanged && (
           <div className="mb-4">
             <button onClick={vpnDetector.clearHomeIp}
               className="w-full py-2.5 bg-[#111118] border border-[rgba(255,255,255,0.15)] text-[#9CA3AF] rounded-lg text-xs font-medium cursor-pointer hover:border-[#EF4444]">
@@ -683,19 +494,19 @@ function ToolsTab({ downloadWireGuardConfig, openQR, providerReady, goToProvider
 
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-['Archivo'] text-base tracking-tight flex items-center gap-2">
-            <Globe size={18} className={isProtected ? "text-[#4ADE80]" : "text-[#E85D4E]"} />
-            {isProtected ? "VPN Tunnel Exit IP" : "Your Real IP Address"}
+            <Globe size={18} className={ipChanged ? "text-[#A3B8D4]" : "text-[#E85D4E]"} />
+            Current public IP
           </h3>
         </div>
         {vpnDetector.isChecking && !vpnDetector.currentIp ? (
           <div className="text-sm text-[#6B7280] flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Detecting IP...</div>
         ) : vpnDetector.currentIp ? (
           <>
-            <div className={`rounded-xl p-4 mb-3 ${isProtected ? "bg-[rgba(74,222,128,0.05)]" : "bg-[#111118]"}`}>
+            <div className={`rounded-xl p-4 mb-3 ${ipChanged ? "bg-[rgba(163,184,212,0.05)]" : "bg-[#111118]"}`}>
               <div className="text-[10px] text-[#6B7280] uppercase tracking-wider mb-1">
-                {isProtected ? "Exit IP (VPN Server)" : "Public IP"}
+                Current public IP
               </div>
-              <div className={`font-['JetBrains_Mono'] text-2xl tracking-wider ${isProtected ? "text-[#4ADE80]" : "text-white"}`}>
+              <div className={`font-['JetBrains_Mono'] text-2xl tracking-wider ${ipChanged ? "text-[#A3B8D4]" : "text-white"}`}>
                 {vpnDetector.currentIp}
               </div>
             </div>
@@ -704,7 +515,7 @@ function ToolsTab({ downloadWireGuardConfig, openQR, providerReady, goToProvider
                 { l: "Location", v: `${vpnDetector.currentCity ?? "?"}, ${vpnDetector.currentCountry ?? "?"}` },
                 { l: "Home IP", v: vpnDetector.homeIp ? `${vpnDetector.homeIp.slice(0, 10)}...` : "Not set", color: vpnDetector.homeIp ? "text-[#D1D5DB]" : "text-[#FBBF24]" },
                 { l: "Checked", v: new Date(vpnDetector.lastCheck).toLocaleTimeString() },
-                { l: "Status", v: isProtected ? "VPN ACTIVE" : needsBaseline ? "NEEDS SETUP" : "EXPOSED", color: isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#EF4444]" },
+                { l: "Status", v: ipChanged ? "IP changed" : needsBaseline ? "Needs setup" : "Same as home", color: ipChanged ? "text-[#A3B8D4]" : needsBaseline ? "text-[#FBBF24]" : "text-[#D1D5DB]" },
               ].map((item) => (
                 <div key={item.l} className="bg-[#111118] rounded-lg p-2.5">
                   <div className="text-[10px] text-[#6B7280] uppercase tracking-wider mb-0.5">{item.l}</div>
@@ -714,16 +525,16 @@ function ToolsTab({ downloadWireGuardConfig, openQR, providerReady, goToProvider
             </div>
             {/* VPN Detection Status */}
             <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)] flex items-start gap-2">
-              {isProtected ? <Wifi size={12} className="text-[#4ADE80] mt-0.5 shrink-0" /> : needsBaseline ? <AlertTriangle size={12} className="text-[#FBBF24] mt-0.5 shrink-0" /> : <Lock size={12} className="text-[#4ADE80] mt-0.5 shrink-0" />}
+              {ipChanged ? <Wifi size={12} className="text-[#A3B8D4] mt-0.5 shrink-0" /> : needsBaseline ? <AlertTriangle size={12} className="text-[#FBBF24] mt-0.5 shrink-0" /> : <Info size={12} className="text-[#9CA3AF] mt-0.5 shrink-0" />}
               <div>
-                <span className={`text-xs font-medium ${isProtected ? "text-[#4ADE80]" : needsBaseline ? "text-[#FBBF24]" : "text-[#4ADE80]"}`}>
-                  {isProtected ? "WireGuard VPN Detected - IP changed from baseline" : needsBaseline ? "Step 1: Set your home IP with VPN off" : "Your details stay in your browser"}
+                <span className={`text-xs font-medium ${ipChanged ? "text-[#A3B8D4]" : needsBaseline ? "text-[#FBBF24]" : "text-[#D1D5DB]"}`}>
+                  {ipChanged ? "Public IP changed from your saved home IP" : needsBaseline ? "Step 1: Set your home IP with any VPN off" : "Your details stay in your browser"}
                 </span>
                 <p className="text-[10px] text-[#6B7280]">
-                  {isProtected
-                    ? `IP changed from ${vpnDetector.homeIp} → ${vpnDetector.currentIp}. Auto-checking every 15 seconds.`
+                  {ipChanged
+                    ? `IP changed from ${vpnDetector.homeIp} → ${vpnDetector.currentIp}. Checking every 15 seconds.`
                     : needsBaseline
-                    ? "After setting home IP, turn WireGuard ON. The dashboard will auto-detect the change."
+                    ? "After setting your home IP, the dashboard checks your public IP every 15 seconds and shows when it changes."
                     : "VelocityVPN doesn't carry your traffic. Provider details stay in this browser; private keys only for the session."}
                 </p>
               </div>
