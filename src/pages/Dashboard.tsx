@@ -21,10 +21,10 @@ import {
 } from "@/hooks/useProviderConfig";
 import { useVpnDetector } from "@/hooks/useVpnDetector";
 import { runCityLatency, useLatencyResults } from "@/hooks/useCityLatency";
-import { LATENCY_NOTE, VARIANCE_NOTE, formatSpreadPm, latencyColor, type LatencyResult } from "@/lib/latency";
+import { VARIANCE_NOTE, formatSpreadPm, latencyColor, type LatencyResult } from "@/lib/latency";
 import MadSpread from "@/components/MadSpread";
 import EstimateTag from "@/components/EstimateTag";
-import { latencyHeadlineLabel, latencyTargetLabel, primaryLatencyTarget, REFERENCE_DC_NOTE } from "@/data/ping-targets";
+import { latencyHeadlineLabel, latencyTargetLabel, primaryLatencyTarget } from "@/data/ping-targets";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -382,7 +382,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-['Archivo'] text-lg tracking-tight">Latency Reference Locations ({servers.length})</h3>
-                <p className="text-xs text-[#6B7280] mt-0.5">HTTP round-trip time to a cloud datacenter in or near each city — the same test as the home page (median ± MAD of 9 requests). {LATENCY_NOTE} {REFERENCE_DC_NOTE} VelocityVPN is bring-your-own WireGuard: your tunnel uses your provider&apos;s endpoint.</p>
+                <p className="text-xs text-[#6B7280] mt-0.5">Round-trip time from your browser to a cloud data center near each city, the same test as the home page. It&apos;s not your VPN server, and not an ICMP ping.</p>
                 <p className="text-xs text-[#6B7280] mt-0.5" data-testid="variance-note">{VARIANCE_NOTE}</p>
               </div>
               <button onClick={testAll} disabled={isTestingAll}
