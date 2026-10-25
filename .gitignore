@@ -37,3 +37,5 @@ pnpm-debug.log*
 # Backup files
 *.backup
 *.full
+test-results/
+playwright-report/
