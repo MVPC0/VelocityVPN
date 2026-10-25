@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import {
   Shield, Zap, Power, Clock, ArrowDown, ArrowUp,
   Activity, Server, RefreshCw, ChevronLeft, Download,
-  Flame, Globe, Lock, Gamepad2, ScanLine,
+  Globe, Lock, Gamepad2, ScanLine,
   HelpCircle, Puzzle, Key, LogIn, X,
   Smartphone, Wifi, AlertTriangle, CheckCircle2,
   Check, Loader2, Info
@@ -28,14 +28,14 @@ import { latencyHeadlineLabel, latencyTargetLabel, primaryLatencyTarget } from "
 
 // ─── Types ────────────────────────────────────────────────────
 
-// A reference location used for the latency test and the heat map.
+// A reference location used for the latency test and the Regions tab.
 // These are not VelocityVPN servers; tunnels use the user's own provider.
 // latency/spread come from the shared test (src/lib/latency.ts), the same
 // one the landing page runs: median and MAD in ms.
 interface VPNServer {
   id: number; name: string; city: string; country: string;
   countryCode: string; region: string; hostname: string; endpoint: string;
-  load: number; latency: number | null; spread: number | null;
+  latency: number | null; spread: number | null;
   protocol: string;
 }
 
@@ -52,8 +52,6 @@ interface SessionRecord {
 const INITIAL_SERVERS: VPNServer[] = VELOCITY_SERVERS.map((s) => ({
   id: s.id, name: s.name, city: s.city, country: s.country,
   countryCode: s.countryCode, region: s.region, hostname: s.hostname, endpoint: s.endpoint,
-  // Modelled "lobby vibe" for the heat map only; not a measurement.
-  load: Math.floor(Math.random() * 35) + 15,
   latency: null,
   spread: null,
   protocol: "wireguard",
@@ -371,7 +369,7 @@ export default function Dashboard() {
           {(["servers", "heat", "stats", "history", "games", "tools", "providers"] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-[#E85D4E] text-white" : "text-[#9CA3AF] hover:text-white"} flex items-center gap-1.5 shrink-0`}>
-              {tab === "servers" ? <><Server size={13} /> Locations</> : tab === "heat" ? <><Flame size={13} /> Heat Map</> : tab === "stats" ? <><Activity size={13} /> Stats</> : tab === "history" ? <><Clock size={13} /> History</> : tab === "games" ? <><Gamepad2 size={13} /> Games</> : tab === "providers" ? <><Globe size={13} /> Providers</> : <><ScanLine size={13} /> Tools</>}
+              {tab === "servers" ? <><Server size={13} /> Locations</> : tab === "heat" ? <><Globe size={13} /> Regions</> : tab === "stats" ? <><Activity size={13} /> Stats</> : tab === "history" ? <><Clock size={13} /> History</> : tab === "games" ? <><Gamepad2 size={13} /> Games</> : tab === "providers" ? <><Globe size={13} /> Providers</> : <><ScanLine size={13} /> Tools</>}
             </button>
           ))}
         </div>
@@ -432,7 +430,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Heat Map Tab */}
+        {/* Regions tab (no load data yet) */}
         {activeTab === "heat" && <ServerHeatMap servers={servers} onSelect={setSelectedServerId} />}
 
         {/* Stats Tab */}
@@ -823,8 +821,6 @@ function WireGuardQR({ provider, onClose, onEdit }: { provider: ProviderConfig; 
     </div>
   );
 }
-
-// ─── Heat Map Component ───────────────────────────────────────
 
 // ─── How to Connect Modal ─────────────────────────────────────
 

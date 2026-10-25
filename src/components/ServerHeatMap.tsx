@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import {
-  Flame, Users, Zap,
-  Globe, Crosshair, Sparkles
+  Users, Zap, Globe, Crosshair
 } from "lucide-react";
 import { getFlag } from "@/data/velocity-servers";
 import { formatSpreadPm } from "@/lib/latency";
@@ -9,7 +8,7 @@ import { formatSpreadPm } from "@/lib/latency";
 interface VPNServer {
   id: number; name: string; city: string; country: string;
   countryCode: string; region: string; hostname: string;
-  load: number; latency: number | null; spread: number | null;
+  latency: number | null; spread: number | null;
   protocol: string;
 }
 
@@ -24,37 +23,6 @@ const REGION_GAMES: Record<string, string[]> = {
   africa: ["Free Fire", "PUBG", "Fortnite", "CoD", "CS2"],
 };
 
-// Vibe classification based on load + region
-function getVibe(load: number): {
-  label: string;
-  emoji: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  desc: string;
-} {
-  if (load >= 80) return {
-    label: "SWEATY LOBBIES", emoji: "🔥", color: "#EF4444", bgColor: "rgba(239,68,68,0.08)",
-    borderColor: "rgba(239,68,68,0.3)", desc: "Pro players, high skill, intense matches"
-  };
-  if (load >= 60) return {
-    label: "COMPETITIVE", emoji: "⚡", color: "#F97316", bgColor: "rgba(249,115,22,0.08)",
-    borderColor: "rgba(249,115,22,0.3)", desc: "Skilled players, ranked lobbies"
-  };
-  if (load >= 45) return {
-    label: "BALANCED", emoji: "🎯", color: "#FBBF24", bgColor: "rgba(251,191,36,0.08)",
-    borderColor: "rgba(251,191,36,0.25)", desc: "Mix of casual and competitive"
-  };
-  if (load >= 30) return {
-    label: "CASUAL ZONE", emoji: "🎮", color: "#22D3EE", bgColor: "rgba(34,211,238,0.08)",
-    borderColor: "rgba(34,211,238,0.2)", desc: "Relaxed lobbies, good for practice"
-  };
-  return {
-    label: "BOT LOBBY", emoji: "🤖", color: "#4ADE80", bgColor: "rgba(74,222,128,0.08)",
-    borderColor: "rgba(74,222,128,0.2)", desc: "Low skill, easy wins, great for grinding"
-  };
-}
-
 const REGION_LABELS: Record<string, string> = {
   north_america: "North America",
   europe: "Europe",
@@ -65,118 +33,37 @@ const REGION_LABELS: Record<string, string> = {
   africa: "Africa",
 };
 
-const VIBE_FILTERS = [
-  { key: "all", label: "All Servers", emoji: "🌍", color: "#E85D4E" },
-  { key: "bot", label: "Bot Lobbies", emoji: "🤖", color: "#4ADE80", maxLoad: 29 },
-  { key: "casual", label: "Casual", emoji: "🎮", color: "#22D3EE", minLoad: 30, maxLoad: 44 },
-  { key: "balanced", label: "Balanced", emoji: "🎯", color: "#FBBF24", minLoad: 45, maxLoad: 59 },
-  { key: "comp", label: "Competitive", emoji: "⚡", color: "#F97316", minLoad: 60, maxLoad: 79 },
-  { key: "sweaty", label: "Sweaty", emoji: "🔥", color: "#EF4444", minLoad: 80 },
-];
-
 interface Props {
   servers: VPNServer[];
   onSelect: (id: number) => void;
 }
 
 export default function ServerHeatMap({ servers, onSelect }: Props) {
-  const [filter, setFilter] = useState("all");
   const [hoveredId, setHoveredId] = useState<number | null>(null);
-  const [liveLoads, setLiveLoads] = useState<Record<number, number>>({});
-  const [lastUpdate, setLastUpdate] = useState(() => Date.now());
 
-  // Auto-fluctuate loads every 3 seconds to simulate live data
-  const fluctuate = useCallback(() => {
-    setLiveLoads((prev) => {
-      const next: Record<number, number> = { ...prev };
-      for (const s of servers) {
-        const base = next[s.id] ?? s.load;
-        // Random shift between -8% and +8%, clamped to 5-95
-        const shift = Math.floor(Math.random() * 17) - 8;
-        next[s.id] = Math.max(5, Math.min(95, base + shift));
-      }
-      return next;
-    });
-    setLastUpdate(Date.now());
-  }, [servers]);
-
-  useEffect(() => {
-    // Initialize
-    fluctuate();
-    const interval = setInterval(fluctuate, 10000);
-    return () => clearInterval(interval);
-  }, [fluctuate]);
-
-  // Merge live loads into server data
-  const liveServers = useMemo(() => {
-    return servers.map((s) => ({
-      ...s,
-      load: liveLoads[s.id] ?? s.load,
-    }));
-  }, [servers, liveLoads]);
-
-  const filtered = useMemo(() => {
-    const f = VIBE_FILTERS.find((v) => v.key === filter);
-    if (!f || f.key === "all") return liveServers;
-    return liveServers.filter((s) => {
-      if (f.maxLoad !== undefined && s.load > f.maxLoad) return false;
-      if (f.minLoad !== undefined && s.load < f.minLoad) return false;
-      return true;
-    });
-  }, [liveServers, filter]);
-
-  const avgLoad = useMemo(() => {
-    return liveServers.length > 0 ? Math.round(liveServers.reduce((sum, s) => sum + s.load, 0) / liveServers.length) : 0;
-  }, [liveServers]);
-
+  // No real load data exists yet, so cards show "—" for load and nothing is
+  // ranked, filtered or color-coded by load.
   // Group by region
   const byRegion = useMemo(() => {
     const groups: Record<string, VPNServer[]> = {};
-    for (const s of filtered) {
+    for (const s of servers) {
       if (!groups[s.region]) groups[s.region] = [];
       groups[s.region].push(s);
     }
     return groups;
-  }, [filtered]);
+  }, [servers]);
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="font-['Archivo'] text-lg tracking-tight flex items-center gap-2">
-              <Flame size={20} className="text-[#E85D4E]" />
-              Pick Your Lobby
-            </h3>
-            <p className="text-xs text-[#6B7280] mt-1 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#4ADE80] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#4ADE80]" />
-              </span>
-              Simulated lobby activity: <span className="text-white font-bold">{avgLoad}%</span> — {servers.length} reference regions (not VPN servers)
-              <span className="text-[10px] text-[#4B5563]">Updated {new Date(lastUpdate).toLocaleTimeString()}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Vibe Filter Pills */}
-        <div className="flex flex-wrap gap-2">
-          {VIBE_FILTERS.map((v) => (
-            <button
-              key={v.key}
-              onClick={() => setFilter(v.key)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer border-0 ${
-                filter === v.key
-                  ? "text-white"
-                  : "bg-[#111118] text-[#6B7280] hover:text-white hover:bg-[rgba(255,255,255,0.08)]"
-              }`}
-              style={filter === v.key ? { backgroundColor: `${v.color}25`, color: v.color, border: `1px solid ${v.color}40` } : {}}
-            >
-              <span>{v.emoji}</span> {v.label}
-            </button>
-          ))}
-        </div>
+        <h3 className="font-['Archivo'] text-lg tracking-tight flex items-center gap-2">
+          <Globe size={20} className="text-[#E85D4E]" />
+          Regions
+        </h3>
+        <p className="text-xs text-[#6B7280] mt-1">
+          {servers.length} reference locations (not VPN servers), grouped by region. No load data yet, so locations aren't rated or ranked.
+        </p>
       </div>
 
       {/* Server Cards */}
@@ -191,23 +78,20 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {regionServers.map((server) => {
-              const vibe = getVibe(server.load);
               const games = REGION_GAMES[server.region] || ["Multiplayer"];
               const isHovered = hoveredId === server.id;
 
               return (
                 <div
                   key={server.id}
+                  data-testid="region-card"
                   onClick={() => onSelect(server.id)}
                   onMouseEnter={() => setHoveredId(server.id)}
                   onMouseLeave={() => setHoveredId(null)}
-                  className="rounded-xl p-4 transition-all cursor-pointer border"
-                  style={{
-                    backgroundColor: vibe.bgColor,
-                    borderColor: isHovered ? vibe.color : vibe.borderColor,
-                  }}
+                  className="rounded-xl p-4 transition-all cursor-pointer border bg-[#0A0A0F]"
+                  style={{ borderColor: isHovered ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)" }}
                 >
-                  {/* Top row: flag + city + vibe badge */}
+                  {/* Top row: flag + city + load */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">{getFlag(server.countryCode)}</span>
@@ -216,26 +100,9 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                         <div className="text-[10px] text-[#6B7280]">{server.name}</div>
                       </div>
                     </div>
-                    <div
-                      className="px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1"
-                      style={{ backgroundColor: `${vibe.color}20`, color: vibe.color }}
-                    >
-                      <span>{vibe.emoji}</span> {vibe.label}
-                    </div>
-                  </div>
-
-                  {/* Vibe description */}
-                  <p className="text-[10px] text-[#9CA3AF] mb-3">{vibe.desc}</p>
-
-                  {/* Load bar */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="flex-1 h-2 bg-[rgba(0,0,0,0.3)] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${server.load}%`, backgroundColor: vibe.color }}
-                      />
-                    </div>
-                    <span className="text-xs font-bold" style={{ color: vibe.color }}>{server.load}%</span>
+                    <span className="text-[10px] text-[#6B7280]" title="No load data yet" data-testid="region-load">
+                      Load <span className="text-[#9CA3AF] font-bold">—</span>
+                    </span>
                   </div>
 
                   {/* Game tags */}
@@ -253,7 +120,7 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                       <Zap size={9} className="text-[#4ADE80]" />
                       {server.latency !== null ? `${server.latency}ms` : "--"}
                     </span>
-                    <span className="flex items-center gap-1" title="No player count — load is a model, not live lobbies">
+                    <span className="flex items-center gap-1" title="No player count">
                       <Users size={9} />
                       —
                     </span>
@@ -269,30 +136,6 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
         </div>
       ))}
 
-      {/* Legend / Guide */}
-      <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5">
-        <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-          <Sparkles size={14} className="text-[#9B6DFF]" /> Lobby Guide
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {[
-            { emoji: "🤖", label: "Bot Lobby", desc: "Load < 30%. Mostly AI/bots. Perfect for grinding camos, challenges, or warming up.", color: "#4ADE80" },
-            { emoji: "🎮", label: "Casual Zone", desc: "Load 30-44%. Relaxed players. Good for trying new weapons or playing with friends.", color: "#22D3EE" },
-            { emoji: "🎯", label: "Balanced", desc: "Load 45-59%. Mix of skills. Fair matches with some challenge.", color: "#FBBF24" },
-            { emoji: "⚡", label: "Competitive", desc: "Load 60-79%. Skilled players. Ranked lobbies, expect tough fights.", color: "#F97316" },
-            { emoji: "🔥", label: "Sweaty", desc: "Load 80%+. Pro-level players. Only join if you want a real challenge.", color: "#EF4444" },
-            { emoji: "🌍", label: "Region Matters", desc: "NA/EU = FPS heavy. Asia = BR/MOBA. Pick based on your game.", color: "#9B6DFF" },
-          ].map((item) => (
-            <div key={item.label} className="bg-[#111118] rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm">{item.emoji}</span>
-                <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
-              </div>
-              <p className="text-[10px] text-[#6B7280] leading-relaxed">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

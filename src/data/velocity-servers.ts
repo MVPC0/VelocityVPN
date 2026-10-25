@@ -1,6 +1,6 @@
 // ─── Region labels ────────────────────────────────────────────
 // 18 reference cities used for browser latency checks and the
-// heat map. VelocityVPN is not a VPN network: these are not VPN
+// Regions tab. VelocityVPN is not a VPN network: these are not VPN
 // nodes and never go into a WireGuard config. endpoint URLs are
 // public websites for coarse browser timing only. Tunnel configs
 // come from the user's own provider (see useProviderConfig).
