@@ -21,7 +21,7 @@ import {
 } from "@/hooks/useProviderConfig";
 import { useVpnDetector } from "@/hooks/useVpnDetector";
 import { runCityLatency, useLatencyResults } from "@/hooks/useCityLatency";
-import { LATENCY_NOTE, formatSpreadPm, latencyColor, type LatencyResult } from "@/lib/latency";
+import { LATENCY_NOTE, VARIANCE_NOTE, formatSpreadPm, latencyColor, type LatencyResult } from "@/lib/latency";
 import MadSpread from "@/components/MadSpread";
 import EstimateTag from "@/components/EstimateTag";
 import { latencyHeadlineLabel, latencyTargetLabel, primaryLatencyTarget, REFERENCE_DC_NOTE } from "@/data/ping-targets";
@@ -383,6 +383,7 @@ export default function Dashboard() {
               <div>
                 <h3 className="font-['Archivo'] text-lg tracking-tight">Latency Reference Locations ({servers.length})</h3>
                 <p className="text-xs text-[#6B7280] mt-0.5">HTTP round-trip time to a cloud datacenter in or near each city — the same test as the home page (median ± MAD of 9 requests). {LATENCY_NOTE} {REFERENCE_DC_NOTE} VelocityVPN is bring-your-own WireGuard: your tunnel uses your provider&apos;s endpoint.</p>
+                <p className="text-xs text-[#6B7280] mt-0.5" data-testid="variance-note">{VARIANCE_NOTE}</p>
               </div>
               <button onClick={testAll} disabled={isTestingAll}
                 className="flex shrink-0 whitespace-nowrap items-center gap-1.5 text-sm text-[#E85D4E] hover:text-white transition-colors disabled:opacity-50 cursor-pointer bg-transparent border-0">

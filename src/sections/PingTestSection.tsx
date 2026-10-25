@@ -15,6 +15,7 @@ import EstimateTag from '@/components/EstimateTag';
 import {
   DROPPED_REQUESTS,
   LATENCY_NOTE,
+  VARIANCE_NOTE,
   MIN_OK_SAMPLES,
   TIMED_REQUESTS,
   TOTAL_REQUESTS,
@@ -343,6 +344,7 @@ const PingTestSection: React.FC = () => {
                     <p className="mt-4 text-[11px] text-[#6B7280] leading-relaxed px-1">
                       Median of {TIMED_REQUESTS} HTTPS requests on one warm connection (needs {MIN_OK_SAMPLES}+ to respond). {LATENCY_NOTE}
                     </p>
+                    <p className="mt-1 text-[11px] text-[#6B7280] leading-relaxed px-1" data-testid="variance-note">{VARIANCE_NOTE}</p>
                     <div className="mt-5 flex flex-col items-center gap-3">
                       <Button
                         variant="secondary"

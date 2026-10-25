@@ -488,4 +488,6 @@ export function latencyLabel(ms: number | null): string {
   return 'Poor';
 }
 
+/** Always shown with latency results (no connection-type detection). */
+export const VARIANCE_NOTE = 'Results can vary between runs, especially on mobile.';
 export const LATENCY_NOTE = 'Measured from your browser over HTTPS, not ICMP ping — may differ from a terminal ping.';
