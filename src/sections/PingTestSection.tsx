@@ -138,10 +138,15 @@ const PingTestSection: React.FC = () => {
       window.clearTimeout(capTimer);
       if (current()) {
         const min = samples.length ? Math.min(...samples) : null;
-        const max = samples.length ? Math.max(...samples) : null;
+        // Jitter = median - min: steady, and one slow outlier can't blow it up.
+        const sorted = [...samples].sort((x, y) => x - y);
+        const mid = Math.floor(sorted.length / 2);
+        const median = sorted.length
+          ? sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+          : null;
         setResult({
           min: min === null ? null : Math.max(1, Math.round(min)),
-          jitter: min === null || max === null ? null : Math.round(max - min),
+          jitter: min === null || median === null ? null : Math.round(median - min),
           ok: samples.length,
           method,
         });
@@ -379,9 +384,7 @@ const PingTestSection: React.FC = () => {
                       )}
                     </div>
                     <p className="mt-4 text-[11px] text-[#6B7280] leading-relaxed px-1">
-                      Lowest of {SAMPLE_COUNT} HTTP round trips on a warm connection (1 warm-up discarded) to
-                      {target ? ` ${pingTargetLabel(target)}` : ' a cloud datacenter'}. An estimate of round-trip latency to a cloud
-                      datacenter near that city (typically within a few ms of in-game ping to servers hosted there), not ICMP.
+                      Lowest of {SAMPLE_COUNT} HTTP round trips on a warm connection to {target ? pingTargetLabel(target) : 'a cloud datacenter'}. Not ICMP.
                     </p>
                     <div className="mt-5 flex flex-col items-center gap-3">
                       <Button

@@ -51,6 +51,8 @@
 
   html {
     scroll-behavior: auto;
+    /* Keep anchor targets clear of the 72px fixed header. */
+    scroll-padding-top: 72px;
   }
 
   body {
