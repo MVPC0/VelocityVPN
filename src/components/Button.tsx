@@ -7,6 +7,7 @@ interface ButtonProps {
   onClick?: () => void;
   className?: string;
   href?: string;
+  disabled?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -16,6 +17,7 @@ const Button: React.FC<ButtonProps> = ({
   onClick,
   className = '',
   href,
+  disabled = false,
 }) => {
   const baseClasses =
     'inline-flex items-center justify-center font-medium transition-all duration-300 cursor-pointer';
@@ -45,7 +47,12 @@ const Button: React.FC<ButtonProps> = ({
   }
 
   return (
-    <button className={classes} onClick={onClick}>
+    <button
+      className={`${classes} disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none`}
+      onClick={onClick}
+      disabled={disabled}
+      aria-disabled={disabled || undefined}
+    >
       {children}
     </button>
   );

@@ -1,292 +1,165 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import SectionHeader from '@/components/SectionHeader';
 import Button from '@/components/Button';
 import CountUp from 'react-countup';
+import WorldDotMap from '@/components/WorldDotMap';
 import { useClosestServer } from '@/hooks/useGeoLocation';
-import type { ServerLocation } from '@/hooks/useGeoLocation';
+import { MAP_CITIES } from '@/lib/world-map';
+import type { MapCity } from '@/lib/world-map';
 import { MapPin, Zap, RefreshCw } from 'lucide-react';
 
-type PingState = 'idle' | 'connecting' | 'testing' | 'result';
+type PingState = 'idle' | 'testing' | 'result';
 
-interface Server {
-  name: string;
-  flag: string;
-  x: number;
-  y: number;
-  endpoint: string;
-  id: number;
-}
+const SAMPLE_COUNT = 3;
+const SAMPLE_TIMEOUT_MS = 4000;
+const RUN_TIMEOUT_MS = 12000;
 
-const SERVER_LOCATIONS: ServerLocation[] = [
-  { id: 1, city: 'New York', countryCode: 'US', lat: 40.7128, lng: -74.0060 },
-  { id: 2, city: 'London', countryCode: 'GB', lat: 51.5074, lng: -0.1278 },
-  { id: 3, city: 'Frankfurt', countryCode: 'DE', lat: 50.1109, lng: 8.6821 },
-  { id: 4, city: 'Tokyo', countryCode: 'JP', lat: 35.6762, lng: 139.6503 },
-  { id: 5, city: 'Singapore', countryCode: 'SG', lat: 1.3521, lng: 103.8198 },
-  { id: 6, city: 'Sydney', countryCode: 'AU', lat: -33.8688, lng: 151.2093 },
-  { id: 7, city: 'Sao Paulo', countryCode: 'BR', lat: -23.5505, lng: -46.6333 },
-  { id: 8, city: 'Dubai', countryCode: 'AE', lat: 25.2048, lng: 55.2708 },
-  { id: 9, city: 'Stockholm', countryCode: 'SE', lat: 59.3293, lng: 18.0686 },
-  { id: 10, city: 'Chicago', countryCode: 'US', lat: 41.8781, lng: -87.6298 },
-  { id: 11, city: 'Toronto', countryCode: 'CA', lat: 43.6532, lng: -79.3832 },
-  { id: 12, city: 'Amsterdam', countryCode: 'NL', lat: 52.3676, lng: 4.9041 },
-  { id: 13, city: 'Paris', countryCode: 'FR', lat: 48.8566, lng: 2.3522 },
-  { id: 14, city: 'Warsaw', countryCode: 'PL', lat: 52.2297, lng: 21.0122 },
-  { id: 15, city: 'Mumbai', countryCode: 'IN', lat: 19.0760, lng: 72.8777 },
-  { id: 16, city: 'Hong Kong', countryCode: 'HK', lat: 22.3193, lng: 114.1694 },
-  { id: 17, city: 'Seoul', countryCode: 'KR', lat: 37.5665, lng: 126.9780 },
-  { id: 18, city: 'Madrid', countryCode: 'ES', lat: 40.4168, lng: -3.7038 },
-  { id: 19, city: 'Los Angeles', countryCode: 'US', lat: 34.0522, lng: -118.2437 },
-];
-
-const servers: Server[] = [
-  { id: 1, name: 'New York', flag: '🇺🇸', x: 22, y: 38, endpoint: 'https://www.google.com/favicon.ico' },
-  { id: 2, name: 'London', flag: '🇬🇧', x: 47, y: 30, endpoint: 'https://www.bbc.co.uk/favicon.ico' },
-  { id: 3, name: 'Frankfurt', flag: '🇩🇪', x: 50, y: 32, endpoint: 'https://www.bundesregierung.de/favicon.ico' },
-  { id: 4, name: 'Tokyo', flag: '🇯🇵', x: 84, y: 38, endpoint: 'https://www.yahoo.co.jp/favicon.ico' },
-  { id: 5, name: 'Singapore', flag: '🇸🇬', x: 76, y: 58, endpoint: 'https://www.gov.sg/favicon.ico' },
-  { id: 6, name: 'Sydney', flag: '🇦🇺', x: 87, y: 74, endpoint: 'https://www.gov.au/favicon.ico' },
-  { id: 7, name: 'Sao Paulo', flag: '🇧🇷', x: 30, y: 74, endpoint: 'https://www.gov.br/favicon.ico' },
-  { id: 8, name: 'Dubai', flag: '🇦🇪', x: 60, y: 47, endpoint: 'https://www.google.ae/favicon.ico' },
-  { id: 9, name: 'Stockholm', flag: '🇸🇪', x: 55, y: 22, endpoint: 'https://www.regeringen.se/favicon.ico' },
-  { id: 10, name: 'Chicago', flag: '🇺🇸', x: 18, y: 36, endpoint: 'https://www.chicago.gov/favicon.ico' },
-  { id: 11, name: 'Toronto', flag: '🇨🇦', x: 24, y: 34, endpoint: 'https://www.canada.ca/favicon.ico' },
-  { id: 12, name: 'Amsterdam', flag: '🇳🇱', x: 48, y: 30, endpoint: 'https://www.rijksoverheid.nl/favicon.ico' },
-  { id: 13, name: 'Paris', flag: '🇫🇷', x: 46, y: 32, endpoint: 'https://www.gouvernement.fr/favicon.ico' },
-  { id: 14, name: 'Warsaw', flag: '🇵🇱', x: 53, y: 28, endpoint: 'https://www.gov.pl/favicon.ico' },
-  { id: 15, name: 'Mumbai', flag: '🇮🇳', x: 66, y: 52, endpoint: 'https://www.india.gov.in/favicon.ico' },
-  { id: 16, name: 'Hong Kong', flag: '🇭🇰', x: 79, y: 48, endpoint: 'https://www.gov.hk/favicon.ico' },
-  { id: 17, name: 'Seoul', flag: '🇰🇷', x: 82, y: 36, endpoint: 'https://www.go.kr/favicon.ico' },
-  { id: 18, name: 'Madrid', flag: '🇪🇸', x: 44, y: 36, endpoint: 'https://www.lamoncloa.gob.es/favicon.ico' },
-  { id: 19, name: 'Los Angeles', flag: '🇺🇸', x: 14, y: 40, endpoint: 'https://www.lacity.gov/favicon.ico' },
-];
-
-const FALLBACK_YOU = { x: 12, y: 42 };
-
-/** Simple mercator-ish mapping onto the same % space as server pins. */
-function latLngToMapPercent(lat: number, lng: number): { x: number; y: number } {
-  // Fit to approximate pin extents: lon -120..150 -> x 14..87, lat 60..-35 -> y 22..74
-  const x = 14 + ((lng - (-120)) / (150 - (-120))) * (87 - 14);
-  const latRad = (Math.max(-60, Math.min(70, lat)) * Math.PI) / 180;
-  const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-  const mercMax = Math.log(Math.tan(Math.PI / 4 + (60 * Math.PI) / 180 / 2));
-  const mercMin = Math.log(Math.tan(Math.PI / 4 + ((-35) * Math.PI) / 180 / 2));
-  const y = 22 + ((mercMax - mercN) / (mercMax - mercMin)) * (74 - 22);
-  return {
-    x: Math.min(92, Math.max(8, x)),
-    y: Math.min(88, Math.max(12, y)),
-  };
-}
-
-function getPingColor(ping: number): string {
+function getPingColor(ping: number | null): string {
+  if (ping === null) return '#9CA3AF';
   if (ping < 50) return '#4ADE80';
   if (ping < 100) return '#FBBF24';
   return '#EF4444';
 }
 
-function getPingLabel(ping: number): string {
+function getPingLabel(ping: number | null): string {
+  if (ping === null) return 'No response';
   if (ping < 50) return 'Excellent';
   if (ping < 100) return 'Good';
   return 'Fair';
 }
 
-// Real ping measurement using image load timing
-function measurePing(endpoint: string): Promise<number> {
+const timingUrl = (city: MapCity) => `${city.endpoint.replace(/\/$/, '')}/favicon.ico`;
+const hostOf = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+
+/** One image-load timing sample. Resolves null on timeout; never rejects. */
+function measurePing(url: string): Promise<number | null> {
   return new Promise((resolve) => {
     const img = new Image();
     const start = performance.now();
-    const cacheBuster = `?t=${Date.now()}_${Math.random()}`;
     let done = false;
-
-    const cleanup = () => {
+    const finish = (value: number | null) => {
       if (done) return;
       done = true;
-      const elapsed = Math.round(performance.now() - start);
-      resolve(Math.max(1, elapsed));
+      window.clearTimeout(timer);
+      img.onload = null;
+      img.onerror = null;
+      resolve(value);
     };
-
-    img.onload = cleanup;
-    img.onerror = cleanup;
-
-    setTimeout(() => {
+    // Any response (even a non-image) means the round trip completed.
+    img.onload = img.onerror = () => finish(Math.max(1, Math.round(performance.now() - start)));
+    const timer = window.setTimeout(() => {
       img.src = '';
-      cleanup();
-    }, 8000);
-
-    img.src = endpoint + cacheBuster;
+      finish(null);
+    }, SAMPLE_TIMEOUT_MS);
+    img.src = `${url}?t=${Date.now()}_${Math.random().toString(36).slice(2)}`;
   });
 }
 
 const PingTestSection: React.FC = () => {
-  const { location, closestServer, distance, loading: geoLoading, detect } = useClosestServer(SERVER_LOCATIONS);
+  const { location, closestServer, distance, loading: geoLoading, detect } = useClosestServer(MAP_CITIES);
   const [state, setState] = useState<PingState>('idle');
-  const [selectedServer, setSelectedServer] = useState<Server | null>(null);
-  const [pingResult, setPingResult] = useState<number>(0);
-  const [progress, setProgress] = useState(0);
-  const [flashingPing, setFlashingPing] = useState<number | null>(null);
-  const [lineProgress, setLineProgress] = useState(0);
-  const [userCity, setUserCity] = useState<string>('');
+  const [selected, setSelected] = useState<MapCity | null>(null);
+  const [pingResult, setPingResult] = useState<number | null>(null);
+  const [samplesDone, setSamplesDone] = useState(0);
   const sparkleCanvasRef = useRef<HTMLCanvasElement>(null);
-  const timeoutsRef = useRef<number[]>([]);
-  const flashIntervalRef = useRef<number | null>(null);
+  const runIdRef = useRef(0);
   const hasAutoRun = useRef(false);
 
-  const youPos = useMemo(() => {
-    if (location) return latLngToMapPercent(location.lat, location.lon);
-    return FALLBACK_YOU;
-  }, [location]);
+  const closestId = closestServer?.id ?? null;
+  const isClosest = (city: MapCity) => closestId === city.id;
 
-  useEffect(() => {
-    if (!closestServer || hasAutoRun.current) return;
-    if (state !== 'idle' || selectedServer !== null) return;
+  const runPingTest = useCallback(async (city: MapCity) => {
+    const runId = ++runIdRef.current;
+    const current = () => runIdRef.current === runId;
+    setSelected(city);
+    setState('testing');
+    setSamplesDone(0);
 
-    const server = servers.find(s => s.id === closestServer.id);
-    if (!server) return;
+    const samples: number[] = [];
+    const sampling = (async () => {
+      for (let i = 0; i < SAMPLE_COUNT && current(); i++) {
+        const value = await measurePing(timingUrl(city));
+        if (!current()) return;
+        if (value !== null) samples.push(value);
+        setSamplesDone(i + 1);
+        if (i < SAMPLE_COUNT - 1) await new Promise((r) => window.setTimeout(r, 100));
+      }
+    })();
 
-    hasAutoRun.current = true;
-    setUserCity(`Detected near ${closestServer.city}`);
-
-    const t = window.setTimeout(() => {
-      runPingTest(server);
-    }, 500);
-
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [closestServer]);
-
-  const clearAllTimeouts = useCallback(() => {
-    timeoutsRef.current.forEach(clearTimeout);
-    timeoutsRef.current = [];
-    if (flashIntervalRef.current !== null) {
-      clearInterval(flashIntervalRef.current);
-      flashIntervalRef.current = null;
+    let capTimer = 0;
+    try {
+      await Promise.race([
+        sampling,
+        new Promise<void>((r) => { capTimer = window.setTimeout(r, RUN_TIMEOUT_MS); }),
+      ]);
+    } catch {
+      // measurePing never rejects; keep whatever samples we have
+    } finally {
+      window.clearTimeout(capTimer);
+      if (current()) {
+        setPingResult(samples.length ? Math.round(samples.reduce((a, b) => a + b, 0) / samples.length) : null);
+        setState('result');
+      }
     }
   }, []);
 
-  const runPingTest = useCallback(async (server: Server) => {
-    clearAllTimeouts();
-    setSelectedServer(server);
-    setState('connecting');
-    setProgress(0);
-    setLineProgress(0);
-    setPingResult(0);
+  // Auto-test the closest city once, after location detection
+  useEffect(() => {
+    if (!closestServer || hasAutoRun.current || state !== 'idle') return;
+    const city = MAP_CITIES.find((c) => c.id === closestServer.id);
+    if (!city) return;
+    hasAutoRun.current = true;
+    const t = window.setTimeout(() => runPingTest(city), 500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closestServer]);
 
-    const lineStart = Date.now();
-    const animateLine = () => {
-      const elapsed = Date.now() - lineStart;
-      const p = Math.min(1, elapsed / 800);
-      setLineProgress(p);
-      if (p < 1) requestAnimationFrame(animateLine);
-    };
-    requestAnimationFrame(animateLine);
+  // Cancel any in-flight run on unmount
+  useEffect(() => () => { runIdRef.current++; }, []);
 
-    const t1 = window.setTimeout(() => {
-      setState('testing');
-
-      const flashInterval = window.setInterval(() => {
-        setFlashingPing(Math.floor(Math.random() * 180) + 20);
-      }, 80);
-      flashIntervalRef.current = flashInterval;
-
-      const progressStart = Date.now();
-      const animateProgress = () => {
-        const elapsed = Date.now() - progressStart;
-        const p = Math.min(1, elapsed / 2000);
-        setProgress(p);
-        if (p < 1) {
-          requestAnimationFrame(animateProgress);
-        } else {
-          clearInterval(flashInterval);
-          if (flashIntervalRef.current === flashInterval) flashIntervalRef.current = null;
-        }
-      };
-      requestAnimationFrame(animateProgress);
-
-      const t2 = window.setTimeout(async () => {
-        const samples: number[] = [];
-        for (let i = 0; i < 3; i++) {
-          const latency = await measurePing(server.endpoint);
-          samples.push(latency);
-          if (i < 2) await new Promise(r => setTimeout(r, 100));
-        }
-
-        const result = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
-
-        setFlashingPing(null);
-        setPingResult(result);
-        setState('result');
-        drawSparkles(result);
-      }, 2000);
-
-      timeoutsRef.current.push(t2);
-    }, 500);
-
-    timeoutsRef.current.push(t1);
-  }, [clearAllTimeouts]);
-
-  const drawSparkles = useCallback((ping: number) => {
+  // Small burst when a result lands (skipped for reduced motion)
+  useEffect(() => {
+    if (state !== 'result' || pingResult === null) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const canvas = sparkleCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
     canvas.width = 200;
     canvas.height = 200;
-
-    const particles: Array<{
-      x: number; y: number; vx: number; vy: number; alpha: number; size: number;
-    }> = [];
-
-    for (let i = 0; i < 12; i++) {
+    const color = getPingColor(pingResult);
+    const particles = Array.from({ length: 12 }, (_, i) => {
       const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.5;
       const speed = 1 + Math.random() * 2;
-      particles.push({
-        x: 100, y: 100,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        alpha: 1,
-        size: 2 + Math.random() * 2,
-      });
-    }
-
-    const color = getPingColor(ping);
-
+      return { x: 100, y: 100, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, alpha: 1, size: 2 + Math.random() * 2 };
+    });
+    let frame = 0;
     const animate = () => {
       ctx.clearRect(0, 0, 200, 200);
       let alive = false;
-
       for (const p of particles) {
         if (p.alpha <= 0) continue;
         alive = true;
-        p.x += p.vx;
-        p.y += p.vy;
-        p.alpha -= 0.02;
-        p.size *= 0.98;
-
+        p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; p.size *= 0.98;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.globalAlpha = Math.max(0, p.alpha);
         ctx.fill();
       }
-
       ctx.globalAlpha = 1;
-      if (alive) requestAnimationFrame(animate);
+      if (alive) frame = requestAnimationFrame(animate);
     };
-
     animate();
-  }, []);
+    return () => cancelAnimationFrame(frame);
+  }, [state, pingResult]);
 
-  useEffect(() => {
-    return () => clearAllTimeouts();
-  }, [clearAllTimeouts]);
-
-  const isClosest = (server: Server) => closestServer?.id === server.id;
+  const testing = state === 'testing';
 
   return (
     <section
       id="ping-test"
-      className="w-full py-20 md:py-28 bg-[#0A0A0F] border-t border-[rgba(255,255,255,0.08)]"
+      // Positioned above the fixed hero globe canvas (z-index 1) so it can't bleed through.
+      className="relative z-[2] w-full py-20 md:py-28 bg-[#0A0A0F] border-t border-[rgba(255,255,255,0.08)]"
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <SectionHeader
@@ -298,14 +171,13 @@ const PingTestSection: React.FC = () => {
         <div className="mt-6 text-center">
           {geoLoading ? (
             <div className="inline-flex items-center gap-2 text-sm text-[#6B7280]">
-              <MapPin size={14} className="animate-pulse" />
+              <MapPin size={14} className="motion-safe:animate-pulse" />
               Detecting your location...
             </div>
           ) : closestServer ? (
             <div className="inline-flex items-center gap-2 text-sm text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-4 py-2 rounded-full">
               <Zap size={14} />
               Closest city: <strong>{closestServer.city}</strong> ({distance}mi away)
-              <span className="text-[#6B7280] ml-1">- auto-testing now</span>
             </div>
           ) : (
             <div className="text-sm text-[#6B7280]">
@@ -324,98 +196,16 @@ const PingTestSection: React.FC = () => {
         <div className="mt-10 flex flex-col lg:flex-row gap-10 lg:gap-12">
           {/* Map */}
           <div className="lg:w-[60%] relative">
-            <div className="relative w-full aspect-[4/3] bg-[#050507] rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden shadow-[inset_0_0_60px_rgba(155,109,255,0.04)]">
-              <svg className="absolute inset-0 w-full h-full opacity-[0.03]" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#grid)" />
-              </svg>
-
-              {/* User location */}
-              <div
-                className="absolute z-[6]"
-                style={{ left: `${youPos.x}%`, top: `${youPos.y}%`, transform: 'translate(-50%, -50%)' }}
-              >
-                <div className="relative">
-                  <div className="w-3 h-3 bg-[#E85D4E] rounded-full" />
-                  <div className="absolute inset-0 w-3 h-3 bg-[#E85D4E] rounded-full animate-ping opacity-50" />
-                  <div className="absolute -inset-2 w-7 h-7 border border-[#E85D4E] rounded-full opacity-30" />
-                </div>
-                <span className="font-['JetBrains_Mono'] text-[10px] text-[#9CA3AF] mt-1 block text-center">You</span>
-              </div>
-
-              {/* Connecting line */}
-              {selectedServer && (
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }}>
-                  <line
-                    x1={`${youPos.x}%`}
-                    y1={`${youPos.y}%`}
-                    x2={`${selectedServer.x}%`}
-                    y2={`${selectedServer.y}%`}
-                    stroke="rgba(232, 93, 78, 0.4)"
-                    strokeWidth={state === 'result' ? 2 : 1}
-                    strokeDasharray="1000"
-                    strokeDashoffset={1000 * (1 - lineProgress)}
-                    className={state === 'result' ? 'animate-pulse' : ''}
-                  />
-                </svg>
-              )}
-
-              {/* Server pins */}
-              {servers.map((server) => {
-                const selected = selectedServer?.name === server.name;
-                const closest = isClosest(server);
-                return (
-                  <button
-                    key={server.name}
-                    className={`absolute transition-all duration-200 group ${
-                      selected ? 'z-10' : ''
-                    }`}
-                    style={{
-                      left: `${server.x}%`,
-                      top: `${server.y}%`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                    onClick={() => runPingTest(server)}
-                    aria-label={`Test timing near ${server.name}`}
-                  >
-                    <div className="w-10 h-10 md:w-6 md:h-6 flex items-center justify-center relative">
-                      {closest && (
-                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[8px] font-bold text-[#4ADE80] bg-[rgba(74,222,128,0.2)] px-1.5 py-0.5 rounded-full whitespace-nowrap border border-[rgba(74,222,128,0.3)]">
-                          CLOSEST
-                        </span>
-                      )}
-                      <div
-                        className={`w-4 h-4 md:w-3 md:h-3 rounded-full border-2 transition-all ${
-                          selected
-                            ? 'bg-[#E85D4E] border-white shadow-[0_0_12px_rgba(232,93,78,0.6)] scale-125'
-                            : closest
-                            ? 'bg-[#4ADE80] border-white shadow-[0_0_8px_rgba(74,222,128,0.5)]'
-                            : 'bg-[#E85D4E] border-white/60'
-                        }`}
-                      >
-                        {selected && (
-                          <div className="absolute inset-0 rounded-full border-2 border-white animate-ping" />
-                        )}
-                      </div>
-                    </div>
-                    <span
-                      className={`absolute top-6 left-1/2 -translate-x-1/2 font-['JetBrains_Mono'] text-[9px] md:text-[10px] whitespace-nowrap transition-opacity bg-[rgba(5,5,7,0.85)] px-1.5 py-0.5 rounded pointer-events-none ${
-                        closest
-                          ? 'text-[#4ADE80] opacity-100'
-                          : selected
-                          ? 'text-white opacity-100'
-                          : 'text-[#9CA3AF] opacity-100 md:opacity-0 md:group-hover:opacity-100'
-                      }`}
-                    >
-                      {server.flag} {server.name}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="relative w-full bg-[#050507] rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden shadow-[inset_0_0_60px_rgba(155,109,255,0.04)] p-2 sm:p-3">
+              <WorldDotMap
+                cities={MAP_CITIES}
+                closestId={closestId}
+                selectedId={selected?.id ?? null}
+                onSelect={(city) => { if (!testing) runPingTest(city); }}
+                you={location ? { lat: location.lat, lng: location.lon } : null}
+                showRoute
+                aspect={2.2}
+              />
             </div>
           </div>
 
@@ -428,86 +218,70 @@ const PingTestSection: React.FC = () => {
                     <div className="text-4xl mb-3">🌐</div>
                     <p className="text-[#9CA3AF] text-sm leading-relaxed max-w-[280px] mx-auto">
                       {closestServer
-                        ? `Closest: ${closestServer.city} (${distance}mi) - tap a city or wait for auto-test`
+                        ? `Closest: ${closestServer.city} (${distance}mi) - tap a city to test`
                         : 'Tap a city to run a timing sample'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center">
-                    {servers.map((server) => (
+                    {MAP_CITIES.map((city) => (
                       <button
-                        key={server.name}
-                        onClick={() => runPingTest(server)}
+                        key={city.id}
+                        onClick={() => runPingTest(city)}
                         className={`px-3.5 py-1.5 border rounded-full text-sm transition-all active:scale-95 ${
-                          isClosest(server)
+                          isClosest(city)
                             ? 'bg-[rgba(74,222,128,0.1)] border-[rgba(74,222,128,0.3)] text-[#4ADE80] hover:bg-[rgba(74,222,128,0.2)]'
                             : 'bg-[#111118] border-[rgba(255,255,255,0.08)] text-[#D1D5DB] hover:border-[#E85D4E] hover:text-white'
                         }`}
                       >
-                        <span className="mr-1">{server.flag}</span>
-                        {server.name}
-                        {isClosest(server) && <span className="ml-1 text-[10px]">★</span>}
+                        <span className="mr-1">{city.flag}</span>
+                        {city.city}
+                        {isClosest(city) && <span className="ml-1 text-[10px]">★</span>}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {state === 'connecting' && (
-                <div className="py-10 text-center">
-                  <div className="font-['JetBrains_Mono'] text-[#9CA3AF] text-lg flex items-center justify-center gap-2">
-                    Connecting
-                    <span className="flex gap-1">
-                      <span className="w-1.5 h-1.5 bg-[#E85D4E] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 bg-[#E85D4E] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 bg-[#E85D4E] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </span>
-                  </div>
-                  <p className="text-[#6B7280] text-sm mt-3">
-                    {selectedServer?.flag} {selectedServer?.name}
-                  </p>
-                  {userCity && <p className="text-xs text-[#4ADE80] mt-2">{userCity}</p>}
-                </div>
-              )}
-
-              {state === 'testing' && (
-                <div className="py-10">
-                  <div className="font-['JetBrains_Mono'] text-[#E85D4E] text-lg mb-5 text-center">
-                    Measuring...
-                  </div>
-                  <div className="w-full h-1.5 bg-[#111118] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#E85D4E] rounded-full transition-all" style={{ width: `${progress * 100}%` }} />
-                  </div>
-                  {flashingPing !== null && (
-                    <div className="mt-8 text-center">
-                      <span className="font-['JetBrains_Mono'] text-4xl text-[#9CA3AF]">{flashingPing}</span>
-                      <span className="font-['JetBrains_Mono'] text-sm text-[#6B7280] ml-1">ms</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {state === 'result' && selectedServer && (
-                <div className="relative">
+              {state !== 'idle' && selected && (
+                <div className="relative" aria-live="polite" aria-busy={testing}>
                   <canvas ref={sparkleCanvasRef} className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-none" style={{ width: 200, height: 200 }} />
                   <div className="text-center">
-                    {isClosest(selectedServer) && (
+                    {isClosest(selected) && (
                       <div className="mb-3 inline-flex items-center gap-1 text-xs text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-3 py-1 rounded-full">
-                        <Zap size={12} /> Closest City - {userCity}
+                        <Zap size={12} /> Closest city to you
                       </div>
                     )}
-                    <div className="flex items-baseline justify-center">
-                      <span className="font-['JetBrains_Mono'] text-6xl md:text-7xl" style={{ color: getPingColor(pingResult) }}>
-                        <CountUp end={pingResult} duration={0.5} />
-                      </span>
-                      <span className="font-['JetBrains_Mono'] text-lg text-[#9CA3AF] ml-2">ms</span>
-                    </div>
-                    <div className="mt-2 text-sm font-medium uppercase tracking-wider" style={{ color: getPingColor(pingResult) }}>
-                      {getPingLabel(pingResult)}
-                    </div>
+                    {testing ? (
+                      <div className="py-2">
+                        <div className="font-['JetBrains_Mono'] text-[#E85D4E] text-lg">Measuring…</div>
+                        <div className="mt-4 w-full h-1.5 bg-[#111118] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#E85D4E] rounded-full transition-all duration-300" style={{ width: `${((samplesDone + 0.3) / (SAMPLE_COUNT + 0.3)) * 100}%` }} />
+                        </div>
+                        <div className="mt-2 text-xs text-[#6B7280] font-['JetBrains_Mono']">Sample {Math.min(samplesDone + 1, SAMPLE_COUNT)} of {SAMPLE_COUNT}</div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-baseline justify-center">
+                          {pingResult !== null ? (
+                            <>
+                              <span className="font-['JetBrains_Mono'] text-6xl md:text-7xl" style={{ color: getPingColor(pingResult) }}>
+                                <CountUp end={pingResult} duration={0.5} />
+                              </span>
+                              <span className="font-['JetBrains_Mono'] text-lg text-[#9CA3AF] ml-2">ms</span>
+                            </>
+                          ) : (
+                            <span className="font-['JetBrains_Mono'] text-5xl text-[#9CA3AF]">--</span>
+                          )}
+                        </div>
+                        <div className="mt-2 text-sm font-medium uppercase tracking-wider" style={{ color: getPingColor(pingResult) }}>
+                          {getPingLabel(pingResult)}
+                        </div>
+                      </>
+                    )}
                     <div className="mt-8 space-y-3.5 text-left bg-[#111118] rounded-xl p-5 border border-[rgba(255,255,255,0.04)]">
                       <div className="flex justify-between items-center gap-3">
                         <span className="text-[#6B7280] text-sm">City</span>
-                        <span className="text-white text-sm">{selectedServer.flag} {selectedServer.name}</span>
+                        <span className="text-white text-sm">{selected.flag} {selected.city}</span>
                       </div>
                       <div className="flex justify-between items-center gap-3">
                         <span className="text-[#6B7280] text-sm">Sample type</span>
@@ -515,9 +289,9 @@ const PingTestSection: React.FC = () => {
                       </div>
                       <div className="flex justify-between items-center gap-3">
                         <span className="text-[#6B7280] text-sm">Endpoint</span>
-                        <span className="text-[#9CA3AF] text-xs font-['JetBrains_Mono'] truncate max-w-[180px]">{selectedServer.endpoint}</span>
+                        <span className="text-[#9CA3AF] text-xs font-['JetBrains_Mono'] truncate max-w-[180px]">{hostOf(selected.endpoint)}</span>
                       </div>
-                      {distance !== null && isClosest(selectedServer) && (
+                      {distance !== null && isClosest(selected) && (
                         <div className="flex justify-between items-center gap-3">
                           <span className="text-[#6B7280] text-sm">Distance</span>
                           <span className="text-[#4ADE80] text-sm font-['JetBrains_Mono']">{distance}mi from you</span>
@@ -527,11 +301,25 @@ const PingTestSection: React.FC = () => {
                     <p className="mt-4 text-[11px] text-[#6B7280] leading-relaxed px-1">
                       Browser fetch timing to a public site near that city - not ICMP, not a VPN hop, not a game server.
                     </p>
-                    <Button variant="secondary" size="sm" className="mt-5"
-                      onClick={() => { setState('idle'); setSelectedServer(null); setPingResult(0); setProgress(0); hasAutoRun.current = false; }}>
-                      <RefreshCw size={14} className="mr-1.5 inline" />
-                      Test Again
-                    </Button>
+                    <div className="mt-5 flex flex-col items-center gap-3">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={testing}
+                        onClick={() => runPingTest(selected)}
+                      >
+                        <RefreshCw size={14} className={`mr-1.5 inline ${testing ? 'motion-safe:animate-spin' : ''}`} />
+                        {testing ? 'Testing…' : 'Test Again'}
+                      </Button>
+                      <button
+                        type="button"
+                        disabled={testing}
+                        onClick={() => setState('idle')}
+                        className="text-xs text-[#9CA3AF] hover:text-white bg-transparent border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Pick another city
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
