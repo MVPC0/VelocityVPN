@@ -1,27 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "VelocityVPN — Free VPN Proxy",
-  "version": "1.0.0",
-  "description": "Free VPN with 18 global locations. No logs, no signup required.",
+  "name": "VelocityVPN — Browser Proxy",
+  "version": "1.1.0",
+  "description": "Route Chrome traffic through your own HTTP, HTTPS or SOCKS5 proxy server.",
   "permissions": [
     "storage",
-    "activeTab"
+    "proxy"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://ipapi.co/*"
   ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "run_at": "document_start",
-      "all_frames": true
-    }
-  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

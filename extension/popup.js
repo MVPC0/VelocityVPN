@@ -1,31 +1,7 @@
 // ─── VelocityVPN Extension Popup ──────────────────────────────
-// Zero-cost VPN using our existing backend proxy tunnel
+// Routes browser traffic through a proxy server the user configures.
+// Protection is only reported when chrome.proxy is really applied.
 
-const API_BASE = "https://xgv7tgjaub4hq.kimi.page/api/trpc";
-
-// Server list (matches backend)
-const SERVERS = [
-  { id: 1, name: "US-West", city: "Los Angeles", countryCode: "US", flag: "\uD83C\uDDFA\uD83C\uDDF8", region: "North America" },
-  { id: 2, name: "US-South", city: "Dallas", countryCode: "US", flag: "\uD83C\uDDFA\uD83C\uDDF8", region: "North America" },
-  { id: 3, name: "US-Central", city: "Chicago", countryCode: "US", flag: "\uD83C\uDDFA\uD83C\uDDF8", region: "North America" },
-  { id: 4, name: "US-East", city: "New York", countryCode: "US", flag: "\uD83C\uDDFA\uD83C\uDDF8", region: "North America" },
-  { id: 5, name: "Japan", city: "Tokyo", countryCode: "JP", flag: "\uD83C\uDDEF\uD83C\uDDF5", region: "Asia-Pacific" },
-  { id: 6, name: "Europe-West", city: "Amsterdam", countryCode: "NL", flag: "\uD83C\uDDF3\uD83C\uDDF1", region: "Europe" },
-  { id: 7, name: "South Korea", city: "Seoul", countryCode: "KR", flag: "\uD83C\uDDF0\uD83C\uDDF7", region: "Asia-Pacific" },
-  { id: 8, name: "UK", city: "London", countryCode: "GB", flag: "\uD83C\uDDEC\uD83C\uDDE7", region: "Europe" },
-  { id: 9, name: "New Zealand", city: "Auckland", countryCode: "NZ", flag: "\uD83C\uDDF3\uD83C\uDDFF", region: "Oceania" },
-  { id: 10, name: "Europe-East", city: "Warsaw", countryCode: "PL", flag: "\uD83C\uDDF5\uD83C\uDDF1", region: "Europe" },
-  { id: 11, name: "Australia-East", city: "Sydney", countryCode: "AU", flag: "\uD83C\uDDE6\uD83C\uDDFA", region: "Oceania" },
-  { id: 12, name: "Hong Kong", city: "Hong Kong", countryCode: "HK", flag: "\uD83C\uDDED\uD83C\uDDF0", region: "Asia-Pacific" },
-  { id: 13, name: "Australia-West", city: "Perth", countryCode: "AU", flag: "\uD83C\uDDE6\uD83C\uDDFA", region: "Oceania" },
-  { id: 14, name: "Europe-North", city: "Stockholm", countryCode: "SE", flag: "\uD83C\uDDF8\uD83C\uDDEA", region: "Europe" },
-  { id: 15, name: "Singapore", city: "Singapore", countryCode: "SG", flag: "\uD83C\uDDF8\uD83C\uDDEC", region: "Asia-Pacific" },
-  { id: 16, name: "Brazil", city: "Sao Paulo", countryCode: "BR", flag: "\uD83C\uDDE7\uD83C\uDDF7", region: "South America" },
-  { id: 17, name: "Dubai", city: "Dubai", countryCode: "AE", flag: "\uD83C\uDDE6\uD83C\uDDEA", region: "Middle East" },
-  { id: 18, name: "South Africa", city: "Johannesburg", countryCode: "ZA", flag: "\uD83C\uDDFF\uD83C\uDDE6", region: "Africa" },
-];
-
-// ─── DOM Elements ─────────────────────────────────────────────
 const els = {
   statusDot: document.getElementById("statusDot"),
   protectionBanner: document.getElementById("protectionBanner"),
@@ -35,23 +11,52 @@ const els = {
   ipLabel: document.getElementById("ipLabel"),
   ipValue: document.getElementById("ipValue"),
   ipLocation: document.getElementById("ipLocation"),
-  serverList: document.getElementById("serverList"),
   connectBtn: document.getElementById("connectBtn"),
+  proxyForm: document.getElementById("proxyForm"),
+  proxyScheme: document.getElementById("proxyScheme"),
+  proxyHost: document.getElementById("proxyHost"),
+  proxyPort: document.getElementById("proxyPort"),
+  proxyState: document.getElementById("proxyState"),
+  proxyHint: document.getElementById("proxyHint"),
 };
 
-// ─── State ────────────────────────────────────────────────────
-let state = {
+const state = {
   connected: false,
-  selectedServerId: 1,
+  configured: false,
+  proxy: null,
   ip: null,
+  baselineIp: null,
   loading: false,
+  error: null,
 };
 
-// ─── Load State ───────────────────────────────────────────────
-async function loadState() {
-  const stored = await chrome.storage.local.get(["vpnConnected", "vpnServerId"]);
-  state.connected = stored.vpnConnected || false;
-  state.selectedServerId = stored.vpnServerId || 1;
+const HOST_PATTERN = /^[A-Za-z0-9.-]{1,253}$|^\[[0-9A-Fa-f:]+\]$/;
+
+function sendMessage(message) {
+  return chrome.runtime.sendMessage(message);
+}
+
+async function refreshStatus() {
+  const status = await sendMessage({ action: "status" });
+  state.connected = Boolean(status?.connected);
+  state.configured = Boolean(status?.configured);
+  state.proxy = status?.proxy ?? null;
+  if (status?.lastProxyError && state.connected) {
+    state.error = `Proxy error: ${status.lastProxyError}`;
+  }
+  const { baselineIp } = await chrome.storage.local.get(["baselineIp"]);
+  state.baselineIp = baselineIp ?? null;
+}
+
+async function loadProxyForm() {
+  const { proxyHost, proxyPort, proxyScheme } = await chrome.storage.local.get([
+    "proxyHost",
+    "proxyPort",
+    "proxyScheme",
+  ]);
+  els.proxyHost.value = proxyHost ?? "";
+  els.proxyPort.value = proxyPort ?? "";
+  els.proxyScheme.value = proxyScheme ?? "http";
 }
 
 // ─── Detect IP ────────────────────────────────────────────────
@@ -60,147 +65,173 @@ async function detectIP() {
     const res = await fetch("https://ipapi.co/json/", { cache: "no-store" });
     const data = await res.json();
     state.ip = data;
-    updateIPDisplay();
+    if (!state.connected && data?.ip) {
+      state.baselineIp = data.ip;
+      await chrome.storage.local.set({ baselineIp: data.ip });
+    }
   } catch {
-    els.ipValue.textContent = "--.--.--.--";
-    els.ipLocation.textContent = "Unable to detect";
+    state.ip = null;
   }
+  updateIPDisplay();
+  updateProtectionUI();
+}
+
+function ipChanged() {
+  return Boolean(state.ip?.ip && state.baselineIp && state.ip.ip !== state.baselineIp);
 }
 
 function updateIPDisplay() {
-  if (!state.ip) return;
-  if (state.connected) {
-    els.ipLabel.textContent = "VPN EXIT IP";
-    els.ipValue.textContent = state.ip.ip;
+  if (!state.ip) {
+    els.ipLabel.textContent = state.connected ? "EXIT IP" : "PUBLIC IP";
+    els.ipValue.textContent = "--.--.--.--";
+    els.ipValue.style.color = "#fff";
+    els.ipLocation.textContent = "Unable to detect";
+    return;
+  }
+  const where = `${state.ip.city ?? "?"}, ${state.ip.country ?? "?"}`;
+  els.ipValue.textContent = state.ip.ip;
+  if (state.connected && ipChanged()) {
+    els.ipLabel.textContent = "PROXY EXIT IP";
     els.ipValue.style.color = "#4ADE80";
-    els.ipLocation.textContent = `${state.ip.city}, ${state.ip.country} — via VPN`;
+    els.ipLocation.textContent = `${where} — via proxy`;
   } else {
     els.ipLabel.textContent = "PUBLIC IP";
-    els.ipValue.textContent = state.ip.ip;
     els.ipValue.style.color = "#fff";
-    els.ipLocation.textContent = `${state.ip.city}, ${state.ip.country} — exposed`;
+    els.ipLocation.textContent = `${where} — exposed`;
   }
 }
 
-// ─── Render Servers ───────────────────────────────────────────
-function renderServers() {
-  els.serverList.innerHTML = "";
-  SERVERS.forEach((server) => {
-    const item = document.createElement("div");
-    item.className = "server-item" +
-      (state.connected && state.selectedServerId === server.id ? " connected" : "") +
-      (!state.connected && state.selectedServerId === server.id ? " selected" : "");
-
-    item.innerHTML = `
-      <span class="server-flag">${server.flag}</span>
-      <div class="server-info">
-        <div class="server-name">${server.name}</div>
-        <div class="server-city">${server.city} — ${server.region}</div>
-      </div>
-    `;
-
-    item.addEventListener("click", async () => {
-      if (state.connected) return; // Can't switch while connected
-      state.selectedServerId = server.id;
-      await chrome.storage.local.set({ vpnServerId: server.id });
-      renderServers();
-    });
-
-    els.serverList.appendChild(item);
-  });
+// ─── Update Protection UI ─────────────────────────────────────
+function setLabel(text, badge, color, bg) {
+  els.protectionLabel.textContent = `${text} `;
+  const span = document.createElement("span");
+  span.style.cssText = `font-size:9px;padding:2px 6px;border-radius:4px;background:${bg};color:${color};`;
+  span.textContent = badge;
+  els.protectionLabel.appendChild(span);
 }
 
-// ─── Update Protection UI ─────────────────────────────────────
 function updateProtectionUI() {
-  if (state.connected) {
+  els.proxyState.textContent = state.configured
+    ? `${state.proxy.scheme.toUpperCase()} ${state.proxy.host}:${state.proxy.port}`
+    : "NOT CONFIGURED";
+
+  if (state.connected && ipChanged()) {
     els.statusDot.className = "status-dot active";
     els.protectionBanner.className = "protection-banner protected";
     els.protectionIcon.textContent = "\uD83D\uDD12";
-    els.protectionLabel.innerHTML = `PROTECTED <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(74,222,128,0.3);color:#4ADE80;">VPN ON</span>`;
-    const server = SERVERS.find((s) => s.id === state.selectedServerId);
-    els.protectionSublabel.textContent = `Traffic routed through ${server?.city || "VPN"}. Real IP hidden.`;
+    setLabel("PROTECTED", "PROXY ON", "#4ADE80", "rgba(74,222,128,0.3)");
+    els.protectionSublabel.textContent = `Traffic routed through ${state.proxy?.host ?? "your proxy"}.`;
+  } else if (state.connected) {
+    els.statusDot.className = "status-dot";
+    els.protectionBanner.className = "protection-banner exposed";
+    els.protectionIcon.textContent = "\u26A0\uFE0F";
+    setLabel("UNVERIFIED", "PROXY SET", "#F59E0B", "rgba(245,158,11,0.3)");
+    els.protectionSublabel.textContent =
+      state.error ?? "Proxy applied, but your public IP has not changed yet.";
   } else {
     els.statusDot.className = "status-dot";
     els.protectionBanner.className = "protection-banner exposed";
     els.protectionIcon.textContent = "\uD83D\uDD34";
-    els.protectionLabel.innerHTML = `EXPOSED <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(239,68,68,0.3);color:#EF4444;">NO VPN</span>`;
-    els.protectionSublabel.textContent = "Your real IP is visible to websites";
+    setLabel(
+      state.configured ? "EXPOSED" : "NOT CONFIGURED",
+      "NO VPN",
+      "#EF4444",
+      "rgba(239,68,68,0.3)",
+    );
+    els.protectionSublabel.textContent =
+      state.error ??
+      (state.configured
+        ? "Your real IP is visible to websites"
+        : "Add a proxy server below to enable protection");
   }
+}
+
+function updateButton() {
+  const btn = els.connectBtn;
+  btn.replaceChildren();
+  if (state.loading) {
+    btn.disabled = true;
+    const spinner = document.createElement("div");
+    spinner.className = "spinner";
+    btn.append(spinner, state.connected ? " Disconnecting..." : " Connecting...");
+    return;
+  }
+
+  if (state.connected) {
+    btn.disabled = false;
+    btn.className = "connect-btn disconnect";
+    btn.textContent = "Disconnect";
+  } else {
+    btn.disabled = !state.configured;
+    btn.className = "connect-btn connect";
+    btn.textContent = state.configured ? "Connect" : "Configure a proxy first";
+  }
+}
+
+function render() {
+  updateIPDisplay();
+  updateProtectionUI();
+  updateButton();
+}
+
+// ─── Save Proxy ───────────────────────────────────────────────
+async function saveProxy(event) {
+  event.preventDefault();
+  state.error = null;
+  const host = els.proxyHost.value.trim();
+  const port = Number(els.proxyPort.value);
+  const scheme = els.proxyScheme.value;
+
+  if (!host) {
+    await chrome.storage.local.remove(["proxyHost", "proxyPort", "proxyScheme"]);
+    if (state.connected) await sendMessage({ action: "disconnect" });
+    els.proxyHint.textContent = "Proxy removed.";
+  } else if (!HOST_PATTERN.test(host) || !Number.isInteger(port) || port < 1 || port > 65535) {
+    els.proxyHint.textContent = "Enter a valid host name or IP and a port between 1 and 65535.";
+    return;
+  } else {
+    await chrome.storage.local.set({ proxyHost: host, proxyPort: port, proxyScheme: scheme });
+    els.proxyHint.textContent = "Proxy saved.";
+    if (state.connected) {
+      const res = await sendMessage({ action: "connect" });
+      if (!res?.success) state.error = res?.error ?? "Could not apply proxy";
+    }
+  }
+
+  await refreshStatus();
+  render();
+  detectIP();
 }
 
 // ─── Connect / Disconnect ─────────────────────────────────────
 async function toggleConnection() {
   if (state.loading) return;
   state.loading = true;
+  state.error = null;
   updateButton();
 
-  if (!state.connected) {
-    // CONNECT — activate proxy
-    const server = SERVERS.find((s) => s.id === state.selectedServerId);
-    try {
-      // Enable proxy via background script
-      await chrome.runtime.sendMessage({
-        action: "connect",
-        serverId: server.id,
-        serverName: server.name,
-        serverCity: server.city,
-      });
-      state.connected = true;
-      await chrome.storage.local.set({ vpnConnected: true, vpnServerId: server.id });
-    } catch (e) {
-      console.error("Connect failed:", e);
-    }
-  } else {
-    // DISCONNECT
-    try {
-      await chrome.runtime.sendMessage({ action: "disconnect" });
-      state.connected = false;
-      await chrome.storage.local.set({ vpnConnected: false });
-    } catch (e) {
-      console.error("Disconnect failed:", e);
-    }
+  try {
+    const res = await sendMessage({ action: state.connected ? "disconnect" : "connect" });
+    if (!res?.success) state.error = res?.error ?? "Request failed";
+  } catch (e) {
+    state.error = e instanceof Error ? e.message : String(e);
   }
 
+  await refreshStatus();
   state.loading = false;
-  updateProtectionUI();
-  updateButton();
-  renderServers();
-  detectIP(); // Re-check IP
-}
-
-function updateButton() {
-  const btn = els.connectBtn;
-  if (state.loading) {
-    btn.disabled = true;
-    btn.innerHTML = `<div class="spinner"></div> ${state.connected ? "Disconnecting..." : "Connecting..."}`;
-    return;
-  }
-
-  btn.disabled = false;
-  if (state.connected) {
-    btn.className = "connect-btn disconnect";
-    btn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-      Disconnect
-    `;
-  } else {
-    btn.className = "connect-btn connect";
-    btn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-      Connect
-    `;
-  }
+  render();
+  detectIP();
 }
 
 // ─── Initialize ───────────────────────────────────────────────
 async function init() {
-  await loadState();
-  updateProtectionUI();
-  updateButton();
-  renderServers();
+  await loadProxyForm();
+  await refreshStatus();
+  render();
   detectIP();
 
   els.connectBtn.addEventListener("click", toggleConnection);
+  els.proxyForm.addEventListener("submit", saveProxy);
 }
 
 init();

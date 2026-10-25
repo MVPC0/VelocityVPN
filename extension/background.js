@@ -1,69 +1,112 @@
 // ─── VelocityVPN Background Service Worker ────────────────────
-// Manages VPN state and coordinates with content scripts
+// Applies a real chrome.proxy configuration using the proxy server the user
+// configured in the popup. Without a configured proxy, nothing is routed and
+// the extension never reports protection.
 
-// ─── Message Handler ──────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+const VALID_SCHEMES = ["http", "https", "socks5"];
+
+function setBadge(on) {
+  chrome.action.setBadgeText({ text: on ? "ON" : "" });
+  if (on) chrome.action.setBadgeBackgroundColor({ color: "#4ADE80" });
+}
+
+async function getProxyConfig() {
+  const { proxyHost, proxyPort, proxyScheme } = await chrome.storage.local.get([
+    "proxyHost",
+    "proxyPort",
+    "proxyScheme",
+  ]);
+  const port = Number(proxyPort);
+  if (!proxyHost || !Number.isInteger(port) || port < 1 || port > 65535) return null;
+  const scheme = VALID_SCHEMES.includes(proxyScheme) ? proxyScheme : "http";
+  return { host: String(proxyHost), port, scheme };
+}
+
+async function connect() {
+  const proxy = await getProxyConfig();
+  if (!proxy) {
+    return { success: false, error: "No proxy server configured" };
+  }
+
+  await chrome.proxy.settings.set({
+    value: {
+      mode: "fixed_servers",
+      rules: {
+        singleProxy: { scheme: proxy.scheme, host: proxy.host, port: proxy.port },
+        bypassList: ["localhost", "127.0.0.1", "<local>"],
+      },
+    },
+    scope: "regular",
+  });
+
+  const details = await chrome.proxy.settings.get({ incognito: false });
+  if (details.levelOfControl !== "controlled_by_this_extension") {
+    await chrome.storage.local.set({ vpnConnected: false });
+    setBadge(false);
+    return {
+      success: false,
+      error: "Another extension or policy controls the proxy settings",
+    };
+  }
+
+  await chrome.storage.local.set({ vpnConnected: true, lastProxyError: null });
+  setBadge(true);
+  return { success: true, proxy };
+}
+
+async function disconnect() {
+  await chrome.proxy.settings.clear({ scope: "regular" });
+  await chrome.storage.local.set({ vpnConnected: false });
+  setBadge(false);
+  return { success: true };
+}
+
+// Verify the stored "connected" flag still matches the real proxy state
+async function syncState() {
+  const [{ vpnConnected }, details] = await Promise.all([
+    chrome.storage.local.get(["vpnConnected"]),
+    chrome.proxy.settings.get({ incognito: false }),
+  ]);
+  const active =
+    Boolean(vpnConnected) &&
+    details.levelOfControl === "controlled_by_this_extension" &&
+    details.value?.mode === "fixed_servers";
+  if (!active && vpnConnected) await chrome.storage.local.set({ vpnConnected: false });
+  setBadge(active);
+  return active;
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     try {
       if (message.action === "connect") {
-        await chrome.storage.local.set({
-          vpnConnected: true,
-          vpnServerId: message.serverId,
-          vpnServerName: message.serverName,
-          vpnServerCity: message.serverCity,
-        });
-        // Notify all content scripts
-        const tabs = await chrome.tabs.query({});
-        for (const tab of tabs) {
-          if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, { action: "vpnStateChanged", enabled: true }).catch(() => {});
-          }
-        }
-        // Update badge
-        chrome.action.setBadgeText({ text: "ON" });
-        chrome.action.setBadgeBackgroundColor({ color: "#4ADE80" });
-        sendResponse({ success: true });
-
+        sendResponse(await connect());
       } else if (message.action === "disconnect") {
-        await chrome.storage.local.set({ vpnConnected: false });
-        // Notify all content scripts
-        const tabs = await chrome.tabs.query({});
-        for (const tab of tabs) {
-          if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, { action: "vpnStateChanged", enabled: false }).catch(() => {});
-          }
-        }
-        // Update badge
-        chrome.action.setBadgeText({ text: "" });
-        sendResponse({ success: true });
-
+        sendResponse(await disconnect());
       } else if (message.action === "status") {
-        const stored = await chrome.storage.local.get(["vpnConnected", "vpnServerId"]);
-        sendResponse({
-          connected: stored.vpnConnected || false,
-          serverId: stored.vpnServerId || null,
-        });
+        const connected = await syncState();
+        const proxy = await getProxyConfig();
+        const { lastProxyError } = await chrome.storage.local.get(["lastProxyError"]);
+        sendResponse({ success: true, connected, configured: Boolean(proxy), proxy, lastProxyError });
+      } else {
+        sendResponse({ success: false, error: "Unknown action" });
       }
     } catch (e) {
-      sendResponse({ success: false, error: e.message });
+      sendResponse({ success: false, error: e instanceof Error ? e.message : String(e) });
     }
   })();
   return true;
 });
 
-// ─── Restore Badge on Startup ─────────────────────────────────
-chrome.runtime.onStartup.addListener(async () => {
-  const stored = await chrome.storage.local.get(["vpnConnected"]);
-  if (stored.vpnConnected) {
-    chrome.action.setBadgeText({ text: "ON" });
-    chrome.action.setBadgeBackgroundColor({ color: "#4ADE80" });
-  }
+chrome.proxy.onProxyError.addListener((details) => {
+  console.warn("[VelocityVPN] Proxy error:", details.error, details.details);
+  chrome.storage.local.set({ lastProxyError: details.error });
 });
 
-chrome.runtime.onInstalled.addListener(async () => {
-  const stored = await chrome.storage.local.get(["vpnConnected"]);
-  if (stored.vpnConnected) {
-    chrome.action.setBadgeText({ text: "ON" });
-    chrome.action.setBadgeBackgroundColor({ color: "#4ADE80" });
-  }
+chrome.runtime.onStartup.addListener(() => {
+  syncState();
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  syncState();
 });

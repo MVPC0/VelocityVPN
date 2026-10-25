@@ -169,6 +169,39 @@
       color: #4ADE80;
     }
 
+    /* Proxy form */
+    .proxy-form {
+      display: grid;
+      grid-template-columns: 72px 1fr 64px;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .proxy-form input, .proxy-form select {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 11px;
+      padding: 8px;
+      min-width: 0;
+    }
+    .proxy-form .save-btn {
+      grid-column: 1 / -1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 7px;
+      cursor: pointer;
+    }
+    .proxy-hint {
+      font-size: 10px;
+      color: #6B7280;
+      margin-bottom: 12px;
+    }
+
     /* Connect Button */
     .connect-btn {
       width: 100%;
@@ -267,12 +300,22 @@
       <div class="ip-location" id="ipLocation">Detecting...</div>
     </div>
 
-    <!-- Server List -->
+    <!-- Proxy Server -->
     <div class="section-title">
-      <span>Select Server</span>
-      <span id="serverCount">18 locations</span>
+      <span>Proxy Server</span>
+      <span id="proxyState">NOT CONFIGURED</span>
     </div>
-    <div class="server-list" id="serverList"></div>
+    <form class="proxy-form" id="proxyForm">
+      <select id="proxyScheme" aria-label="Proxy type">
+        <option value="http">HTTP</option>
+        <option value="https">HTTPS</option>
+        <option value="socks5">SOCKS5</option>
+      </select>
+      <input id="proxyHost" type="text" placeholder="proxy.example.com" aria-label="Proxy host" autocomplete="off" spellcheck="false" />
+      <input id="proxyPort" type="number" min="1" max="65535" placeholder="8080" aria-label="Proxy port" />
+      <button type="submit" class="save-btn" id="saveProxyBtn">Save</button>
+    </form>
+    <div class="proxy-hint" id="proxyHint">Enter your own proxy server to route browser traffic. Without one, nothing is protected.</div>
 
     <!-- Connect Button -->
     <button class="connect-btn connect" id="connectBtn" disabled>
@@ -284,9 +327,9 @@
   <div class="footer">
     <div class="footer-text">
       <span style="font-size:12px;">&#x1F512;</span>
-      <span>Zero Logs Policy</span>
+      <span>Your proxy, your traffic</span>
     </div>
-    <div class="footer-sublabel">We don't store connection or traffic data</div>
+    <div class="footer-sublabel">Traffic goes only to the proxy server you configure</div>
   </div>
 
   <script src="popup.js" type="module"></script>
