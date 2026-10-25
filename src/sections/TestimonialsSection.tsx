@@ -29,7 +29,7 @@ const testimonials: Testimonial[] = [
     bgColor: "bg-[#3a1a3a]",
   },
   {
-    quote: "There is no server load data yet, so the Regions tab shows \"—\" for load and doesn't rate or rank cities.",
+    quote: "There is no server load data yet, so the Regions tab doesn't show load or rate or rank cities.",
     name: "Product fact",
     role: "Regions",
     game: "No load data yet",

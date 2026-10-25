@@ -41,7 +41,7 @@ interface Props {
 export default function ServerHeatMap({ servers, onSelect }: Props) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
-  // No real load data exists yet, so cards show "—" for load and nothing is
+  // No real load data exists yet, so cards show no load and nothing is
   // ranked, filtered or color-coded by load.
   // Group by region
   const byRegion = useMemo(() => {
@@ -91,8 +91,8 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                   className="rounded-xl p-4 transition-all cursor-pointer border bg-[#0A0A0F]"
                   style={{ borderColor: isHovered ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)" }}
                 >
-                  {/* Top row: flag + city + load */}
-                  <div className="flex items-center justify-between mb-3">
+                  {/* Top row: flag + city */}
+                  <div className="flex items-center mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">{getFlag(server.countryCode)}</span>
                       <div>
@@ -100,9 +100,6 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                         <div className="text-[10px] text-[#6B7280]">{server.name}</div>
                       </div>
                     </div>
-                    <span className="text-[10px] text-[#6B7280]" title="No load data yet" data-testid="region-load">
-                      Load <span className="text-[#9CA3AF] font-bold">—</span>
-                    </span>
                   </div>
 
                   {/* Game tags */}
