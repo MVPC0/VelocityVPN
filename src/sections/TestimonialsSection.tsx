@@ -21,7 +21,7 @@ const testimonials: Testimonial[] = [
     bgColor: "bg-[#1a3a5c]",
   },
   {
-    quote: "Ping numbers on the landing page time a public website in that city. They are not ICMP pings to a Velocity node or a game server.",
+    quote: "Latency numbers on the landing page are HTTP round-trip times from your browser to a cloud datacenter near each city. They are not ICMP pings to a Velocity node or a game server.",
     name: "Product fact",
     role: "Latency checks",
     game: "Browser timing",

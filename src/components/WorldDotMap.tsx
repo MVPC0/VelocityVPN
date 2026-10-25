@@ -230,7 +230,7 @@ const WorldDotMap: React.FC<WorldDotMapProps> = ({
             }}
             onMouseEnter={() => setActiveId(String(city.id))}
             onFocus={() => setActiveId(String(city.id))}
-            aria-label={onSelect ? `Test timing near ${city.city}` : city.city}
+            aria-label={onSelect ? `Measure latency near ${city.city}` : city.city}
             title={city.city}
             tabIndex={onSelect ? undefined : 0}
           >

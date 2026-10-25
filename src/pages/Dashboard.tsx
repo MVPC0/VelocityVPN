@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   Shield, Zap, Power, Clock, ArrowDown, ArrowUp,
@@ -20,15 +20,20 @@ import {
   type ProviderConfig,
 } from "@/hooks/useProviderConfig";
 import { useVpnDetector } from "@/hooks/useVpnDetector";
+import { runCityLatency, useLatencyResults } from "@/hooks/useCityLatency";
+import { LATENCY_NOTE, latencyColor, type LatencyResult } from "@/lib/latency";
+import { latencyTargetLabel, primaryLatencyTarget } from "@/data/ping-targets";
 
 // ─── Types ────────────────────────────────────────────────────
 
-// A reference location used for browser latency timing and the heat map.
+// A reference location used for the latency test and the heat map.
 // These are not VelocityVPN servers; tunnels use the user's own provider.
+// latency/spread come from the shared test (src/lib/latency.ts), the same
+// one the landing page runs: median and MAD in ms.
 interface VPNServer {
   id: number; name: string; city: string; country: string;
   countryCode: string; region: string; hostname: string; endpoint: string;
-  load: number; ping: number | null; jitter: number | null;
+  load: number; latency: number | null; spread: number | null;
   protocol: string;
 }
 
@@ -47,8 +52,8 @@ const INITIAL_SERVERS: VPNServer[] = VELOCITY_SERVERS.map((s) => ({
   countryCode: s.countryCode, region: s.region, hostname: s.hostname, endpoint: s.endpoint,
   // Modelled "lobby vibe" for the heat map only; not a measurement.
   load: Math.floor(Math.random() * 35) + 15,
-  ping: null,
-  jitter: null,
+  latency: null,
+  spread: null,
   protocol: "wireguard",
 }));
 
@@ -71,24 +76,38 @@ function downloadText(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
-// Rough browser timing to a public site near the city (not ICMP, not a VPN hop).
-async function timeFetch(url: string): Promise<number | null> {
-  const start = performance.now();
-  try {
-    await fetch(`${url}${url.includes("?") ? "&" : "/?"}t=${Date.now()}`, {
-      method: "HEAD", mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(5000),
-    });
-    return Math.round(performance.now() - start);
-  } catch {
-    return null;
+/** Run the shared latency test for many cities, a few at a time so they don't compete for bandwidth. */
+async function measureCities(ids: number[], concurrency = 3) {
+  const queue = [...ids];
+  await Promise.all(Array.from({ length: concurrency }, async () => {
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) await runCityLatency(id);
+  }));
+}
+
+function LatencyBadge({ result }: { result: LatencyResult | undefined }) {
+  if (!result) return <div className="text-xs text-[#6B7280]">-- ms</div>;
+  if (result.status === "unavailable" || !result.stats) {
+    return <div className="text-xs text-[#FBBF24]" title={result.note ?? undefined}>Unavailable</div>;
   }
+  const { median, mad } = result.stats;
+  return (
+    <>
+      <div className="font-['JetBrains_Mono'] text-sm" style={{ color: result.status === "unreliable" ? "#FBBF24" : latencyColor(median) }}>{median}ms</div>
+      <div className="text-[10px] text-[#6B7280]">± {mad}ms{result.status === "unreliable" ? " · unreliable" : ""}</div>
+    </>
+  );
 }
 
 // ─── Dashboard Component ──────────────────────────────────────
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [servers, setServers] = useState<VPNServer[]>(INITIAL_SERVERS);
+  const [baseServers] = useState<VPNServer[]>(INITIAL_SERVERS);
+  const latency = useLatencyResults();
+  const servers = useMemo(() => baseServers.map((s) => {
+    const st = latency.get(s.id)?.stats ?? null;
+    return { ...s, latency: st?.median ?? null, spread: st?.mad ?? null };
+  }), [baseServers, latency]);
   const [selectedServerId, setSelectedServerId] = useState<number | null>(null);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -102,7 +121,7 @@ export default function Dashboard() {
   const [showQR, setShowQR] = useState(false);
   const [showHowTo, setShowHowTo] = useState(false);
   const [showProviderRequired, setShowProviderRequired] = useState(false);
-  const [isPingingAll, setIsPingingAll] = useState(false);
+  const [isTestingAll, setIsTestingAll] = useState(false);
   const [history, setHistory] = useState<SessionRecord[]>([]);
   const [stats, setStats] = useState({ totalSessions: 0, totalDuration: 0 });
 
@@ -174,16 +193,9 @@ export default function Dashboard() {
   }, [connection, elapsed]);
 
   const testAll = useCallback(async () => {
-    setIsPingingAll(true);
-    await Promise.all(servers.map(async (s) => {
-      const a = await timeFetch(s.endpoint);
-      const b = await timeFetch(s.endpoint);
-      const samples = [a, b].filter((v): v is number => v !== null);
-      const ping = samples.length ? Math.min(...samples) : null;
-      const jitter = samples.length === 2 ? Math.abs(samples[0] - samples[1]) : null;
-      setServers((prev) => prev.map((sv) => (sv.id === s.id ? { ...sv, ping, jitter } : sv)));
-    }));
-    setIsPingingAll(false);
+    setIsTestingAll(true);
+    await measureCities(servers.map((s) => s.id));
+    setIsTestingAll(false);
   }, [servers]);
 
   // Config + QR come only from the user's own provider entry.
@@ -364,12 +376,12 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-['Archivo'] text-lg tracking-tight">Ping Reference Locations ({servers.length})</h3>
-                <p className="text-xs text-[#6B7280] mt-0.5">Browser timing to public sites near each city - a rough region hint. These aren't VelocityVPN servers; your tunnel uses your provider's endpoint.</p>
+                <h3 className="font-['Archivo'] text-lg tracking-tight">Latency Reference Locations ({servers.length})</h3>
+                <p className="text-xs text-[#6B7280] mt-0.5">HTTP round-trip time to a cloud datacenter in or near each city — the same test as the home page (median ± MAD of 9 requests). {LATENCY_NOTE} These aren&apos;t VelocityVPN servers; your tunnel uses your provider&apos;s endpoint.</p>
               </div>
-              <button onClick={testAll} disabled={isPingingAll}
-                className="flex items-center gap-1.5 text-sm text-[#E85D4E] hover:text-white transition-colors disabled:opacity-50 cursor-pointer bg-transparent border-0">
-                <RefreshCw size={13} className={isPingingAll ? "animate-spin" : ""} /> {isPingingAll ? "Testing..." : "Test All"}
+              <button onClick={testAll} disabled={isTestingAll}
+                className="flex shrink-0 whitespace-nowrap items-center gap-1.5 text-sm text-[#E85D4E] hover:text-white transition-colors disabled:opacity-50 cursor-pointer bg-transparent border-0">
+                <RefreshCw size={13} className={isTestingAll ? "animate-spin" : ""} /> {isTestingAll ? "Testing..." : "Test All"}
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -386,12 +398,18 @@ export default function Dashboard() {
                         <div>
                           <div className="font-medium text-sm text-white">{server.city}</div>
                           <div className="text-xs text-[#6B7280]">{server.name}</div>
+                          <div className="text-[10px] text-[#6B7280] font-['JetBrains_Mono']">
+                            {(() => {
+                              const r = latency.get(server.id);
+                              const t = r?.target ?? primaryLatencyTarget(server.id);
+                              if (!t) return null;
+                              return <>{latencyTargetLabel(t)}{r?.viaFallback ? <span className="text-[#FBBF24]"> · via fallback</span> : null}</>;
+                            })()}
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        {server.ping !== null ? (
-                          <><div className="font-['JetBrains_Mono'] text-sm text-[#4ADE80]">{server.ping}ms</div><div className="text-[10px] text-[#6B7280]">jitter {server.jitter}ms</div></>
-                        ) : <div className="text-xs text-[#6B7280]">-- ms</div>}
+                        <LatencyBadge result={latency.get(server.id)} />
                       </div>
                     </div>
                   </div>
@@ -442,7 +460,7 @@ export default function Dashboard() {
                       <span className="text-sm">{getFlag(s.countryCode)}</span>
                       <span className="text-xs text-white font-medium">{s.city}</span>
                     </div>
-                    <div className="font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF]">{s.ping !== null ? `${s.ping} ms` : "-- ms"}</div>
+                    <div className="font-['JetBrains_Mono'] text-[11px] text-[#9CA3AF]">{latency.get(s.id)?.status === "unavailable" ? "Unavailable" : s.latency !== null ? `${s.latency} ± ${s.spread} ms` : "-- ms"}</div>
                   </div>
                 ))}
               </div>

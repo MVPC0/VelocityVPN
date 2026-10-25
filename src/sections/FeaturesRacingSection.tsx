@@ -27,7 +27,7 @@ const features: Feature[] = [
   {
     icon: Zap,
     title: 'Region latency check',
-    description: 'Browser timing against public sites in a city. That is not ICMP ping and not a measurement of a VelocityVPN node.',
+    description: 'HTTP round-trip time from your browser to a cloud datacenter near a city. That is not ICMP ping and not a measurement of a VelocityVPN node.',
     speed: 1.0,
     column: 2,
     floatDelay: -1,

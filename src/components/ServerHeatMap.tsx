@@ -8,7 +8,7 @@ import { getFlag } from "@/data/velocity-servers";
 interface VPNServer {
   id: number; name: string; city: string; country: string;
   countryCode: string; region: string; hostname: string;
-  load: number; ping: number | null; jitter: number | null;
+  load: number; latency: number | null; spread: number | null;
   protocol: string;
 }
 
@@ -250,7 +250,7 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                   <div className="flex items-center justify-between text-[10px] text-[#6B7280]">
                     <span className="flex items-center gap-1">
                       <Zap size={9} className="text-[#4ADE80]" />
-                      {server.ping !== null ? `${server.ping}ms` : "--"}
+                      {server.latency !== null ? `${server.latency}ms` : "--"}
                     </span>
                     <span className="flex items-center gap-1">
                       <Users size={9} />
@@ -258,7 +258,7 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                     </span>
                     <span className="flex items-center gap-1">
                       <Crosshair size={9} />
-                      {server.jitter !== null ? `${server.jitter}ms jitter` : "--"}
+                      {server.spread !== null ? `± ${server.spread}ms` : "--"}
                     </span>
                   </div>
                 </div>

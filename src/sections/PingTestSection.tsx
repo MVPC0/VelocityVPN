@@ -4,157 +4,42 @@ import Button from '@/components/Button';
 import CountUp from 'react-countup';
 import WorldDotMap from '@/components/WorldDotMap';
 import { useClosestServer } from '@/hooks/useGeoLocation';
+import { useCityLatency } from '@/hooks/useCityLatency';
 import { MAP_CITIES } from '@/lib/world-map';
 import type { MapCity } from '@/lib/world-map';
-import { getPingTarget, pingTargetLabel } from '@/data/ping-targets';
-import type { PingTarget } from '@/data/ping-targets';
-import { MapPin, Zap, RefreshCw } from 'lucide-react';
+import { primaryLatencyTarget, latencyTargetLabel } from '@/data/ping-targets';
+import {
+  DROPPED_REQUESTS,
+  LATENCY_NOTE,
+  MIN_OK_SAMPLES,
+  TIMED_REQUESTS,
+  TOTAL_REQUESTS,
+  latencyColor,
+  latencyLabel,
+} from '@/lib/latency';
+import { MapPin, Zap, RefreshCw, AlertTriangle } from 'lucide-react';
 
-type PingState = 'idle' | 'testing' | 'result';
-
-const WARMUP_COUNT = 1;
-const SAMPLE_COUNT = 5;
-const SAMPLE_TIMEOUT_MS = 4000;
-const RUN_TIMEOUT_MS = 15000;
-
-type PingMethod = 'resource-timing' | 'wall-clock';
-
-interface PingResult {
-  /** Minimum RTT across timed samples (ms), or null if none succeeded. */
-  min: number | null;
-  /** max - min across timed samples (ms). */
-  jitter: number | null;
-  ok: number;
-  method: PingMethod;
-}
-
-const EMPTY_RESULT: PingResult = { min: null, jitter: null, ok: 0, method: 'wall-clock' };
-
-function getPingColor(ping: number | null): string {
-  if (ping === null) return '#9CA3AF';
-  if (ping < 40) return '#4ADE80';
-  if (ping < 80) return '#A3E635';
-  if (ping < 130) return '#FBBF24';
-  return '#EF4444';
-}
-
-function getPingLabel(ping: number | null): string {
-  if (ping === null) return 'No response';
-  if (ping < 40) return 'Excellent';
-  if (ping < 80) return 'Good';
-  if (ping < 130) return 'Fair';
-  return 'Poor';
-}
+type TestState = 'idle' | 'testing' | 'result';
 
 const hostOf = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
-/**
- * One HTTP round trip to the datacenter on an already-warm connection.
- * Uses Resource Timing (responseStart - requestStart) when the server
- * exposes it, otherwise wall-clock time until response headers arrive.
- * Resolves null on error/timeout; never rejects.
- */
-async function measureRtt(target: PingTarget): Promise<{ ms: number; method: PingMethod } | null> {
-  const url = `${target.url}?t=${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), SAMPLE_TIMEOUT_MS);
-  const start = performance.now();
-  try {
-    const res = await fetch(url, {
-      cache: 'no-store',
-      mode: target.mode,
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
-      signal: controller.signal,
-    });
-    const headersAt = performance.now();
-    await res.arrayBuffer().catch(() => undefined);
-    const entry = performance.getEntriesByName(url).pop() as PerformanceResourceTiming | undefined;
-    if (entry && entry.requestStart > 0 && entry.responseStart > entry.requestStart) {
-      return { ms: entry.responseStart - entry.requestStart, method: 'resource-timing' };
-    }
-    return { ms: headersAt - start, method: 'wall-clock' };
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
 const PingTestSection: React.FC = () => {
   const { location, closestServer, distance, loading: geoLoading, detect } = useClosestServer(MAP_CITIES);
-  const [state, setState] = useState<PingState>('idle');
+  const [state, setState] = useState<TestState>('idle');
   const [selected, setSelected] = useState<MapCity | null>(null);
-  const [result, setResult] = useState<PingResult>(EMPTY_RESULT);
-  const [warming, setWarming] = useState(false);
-  const [samplesDone, setSamplesDone] = useState(0);
+  const { progress, result, run } = useCityLatency();
   const sparkleCanvasRef = useRef<HTMLCanvasElement>(null);
-  const runIdRef = useRef(0);
   const hasAutoRun = useRef(false);
 
   const closestId = closestServer?.id ?? null;
   const isClosest = (city: MapCity) => closestId === city.id;
 
-  const runPingTest = useCallback(async (city: MapCity) => {
-    const runId = ++runIdRef.current;
-    const current = () => runIdRef.current === runId;
+  const runTest = useCallback(async (city: MapCity) => {
     setSelected(city);
     setState('testing');
-    setSamplesDone(0);
-
-    setWarming(true);
-    const target = getPingTarget(city.id);
-
-    const samples: number[] = [];
-    let method: PingMethod = 'wall-clock';
-    const sampling = (async () => {
-      if (!target) return;
-      // Warm-up: opens DNS + TCP + TLS so timed samples measure only the
-      // network round trip, like a game's already-open connection.
-      for (let i = 0; i < WARMUP_COUNT && current(); i++) await measureRtt(target);
-      if (!current()) return;
-      setWarming(false);
-      for (let i = 0; i < SAMPLE_COUNT && current(); i++) {
-        const sample = await measureRtt(target);
-        if (!current()) return;
-        if (sample) {
-          samples.push(sample.ms);
-          if (sample.method === 'resource-timing') method = 'resource-timing';
-        }
-        setSamplesDone(i + 1);
-        if (i < SAMPLE_COUNT - 1) await new Promise((r) => window.setTimeout(r, 60));
-      }
-    })();
-
-    let capTimer = 0;
-    try {
-      await Promise.race([
-        sampling,
-        new Promise<void>((r) => { capTimer = window.setTimeout(r, RUN_TIMEOUT_MS); }),
-      ]);
-    } catch {
-      // measureRtt never rejects; keep whatever samples we have
-    } finally {
-      window.clearTimeout(capTimer);
-      if (current()) {
-        const min = samples.length ? Math.min(...samples) : null;
-        // Jitter = median - min: steady, and one slow outlier can't blow it up.
-        const sorted = [...samples].sort((x, y) => x - y);
-        const mid = Math.floor(sorted.length / 2);
-        const median = sorted.length
-          ? sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
-          : null;
-        setResult({
-          min: min === null ? null : Math.max(1, Math.round(min)),
-          jitter: min === null || median === null ? null : Math.round(median - min),
-          ok: samples.length,
-          method,
-        });
-        setWarming(false);
-        setState('result');
-      }
-    }
-  }, []);
+    const r = await run(city.id);
+    if (r) setState('result');
+  }, [run]);
 
   // Auto-test the closest city once, after location detection
   useEffect(() => {
@@ -162,24 +47,23 @@ const PingTestSection: React.FC = () => {
     const city = MAP_CITIES.find((c) => c.id === closestServer.id);
     if (!city) return;
     hasAutoRun.current = true;
-    const t = window.setTimeout(() => runPingTest(city), 500);
+    const t = window.setTimeout(() => runTest(city), 500);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closestServer]);
 
-  // Cancel any in-flight run on unmount
-  useEffect(() => () => { runIdRef.current++; }, []);
+  const headline = state === 'result' && result?.stats ? result.stats.median : null;
 
   // Small burst when a result lands (skipped for reduced motion)
   useEffect(() => {
-    if (state !== 'result' || result.min === null) return;
+    if (headline === null) return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const canvas = sparkleCanvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     canvas.width = 200;
     canvas.height = 200;
-    const color = getPingColor(result.min);
+    const color = latencyColor(headline);
     const particles = Array.from({ length: 12 }, (_, i) => {
       const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.5;
       const speed = 1 + Math.random() * 2;
@@ -204,11 +88,17 @@ const PingTestSection: React.FC = () => {
     };
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [state, result.min]);
+  }, [headline]);
 
   const testing = state === 'testing';
-  const target = selected ? getPingTarget(selected.id) : undefined;
-  const pingResult = result.min;
+  const primary = selected ? primaryLatencyTarget(selected.id) : undefined;
+  // Show the target the numbers came from (a fallback, if one was used).
+  const target = state === 'result' && result?.status !== 'unavailable' && result?.target ? result.target : testing && progress ? progress.target : primary;
+  const stats = state === 'result' ? result?.stats ?? null : null;
+  const status = state === 'result' ? result?.status ?? null : null;
+  const viaFallback = state === 'result' && !!result?.viaFallback;
+  const reqDone = progress?.done ?? 0;
+  const onFallback = (progress?.targetIndex ?? 0) > 0;
 
   return (
     <section
@@ -218,9 +108,9 @@ const PingTestSection: React.FC = () => {
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <SectionHeader
-          eyebrow="PING TEST"
+          eyebrow="LATENCY TEST"
           title="Test Your Connection"
-          subtitle="Estimate of round-trip latency to a cloud datacenter near that city (typically within a few ms of in-game ping to servers hosted there), not ICMP."
+          subtitle="HTTP round-trip time from your browser to a cloud datacenter in or near that city — the kind of region game servers are hosted in."
         />
 
         <div className="mt-6 text-center">
@@ -237,7 +127,7 @@ const PingTestSection: React.FC = () => {
           ) : (
             <div className="text-sm text-[#6B7280]">
               <MapPin size={14} className="inline mr-1" />
-              Tap a city below to run a browser timing sample, or
+              Tap a city below to measure latency, or
               <button
                 onClick={() => detect()}
                 className="ml-1 text-[#E85D4E] hover:underline bg-transparent border-0 cursor-pointer"
@@ -256,7 +146,7 @@ const PingTestSection: React.FC = () => {
                 cities={MAP_CITIES}
                 closestId={closestId}
                 selectedId={selected?.id ?? null}
-                onSelect={(city) => { if (!testing) runPingTest(city); }}
+                onSelect={(city) => { if (!testing) runTest(city); }}
                 you={location ? { lat: location.lat, lng: location.lon } : null}
                 showRoute
                 aspect={2.2}
@@ -274,14 +164,14 @@ const PingTestSection: React.FC = () => {
                     <p className="text-[#9CA3AF] text-sm leading-relaxed max-w-[280px] mx-auto">
                       {closestServer
                         ? `Closest: ${closestServer.city} (${distance}mi) - tap a city to test`
-                        : 'Tap a city to run a timing sample'}
+                        : 'Tap a city to measure latency'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {MAP_CITIES.map((city) => (
                       <button
                         key={city.id}
-                        onClick={() => runPingTest(city)}
+                        onClick={() => runTest(city)}
                         className={`px-3.5 py-1.5 border rounded-full text-sm transition-all active:scale-95 ${
                           isClosest(city)
                             ? 'bg-[rgba(74,222,128,0.1)] border-[rgba(74,222,128,0.3)] text-[#4ADE80] hover:bg-[rgba(74,222,128,0.2)]'
@@ -308,19 +198,30 @@ const PingTestSection: React.FC = () => {
                     )}
                     {testing ? (
                       <div className="py-2">
-                        <div className="font-['JetBrains_Mono'] text-[#E85D4E] text-lg">{warming ? 'Warming up connection…' : 'Measuring…'}</div>
-                        <div className="mt-4 w-full h-1.5 bg-[#111118] rounded-full overflow-hidden">
-                          <div className="h-full bg-[#E85D4E] rounded-full transition-all duration-300" style={{ width: `${((samplesDone + 0.3) / (SAMPLE_COUNT + 0.3)) * 100}%` }} />
+                        <div className="font-['JetBrains_Mono'] text-[#E85D4E] text-lg">
+                          {onFallback ? 'Trying fallback…' : reqDone < DROPPED_REQUESTS ? 'Opening connection…' : 'Measuring…'}
                         </div>
-                        <div className="mt-2 text-xs text-[#6B7280] font-['JetBrains_Mono']">{warming ? 'Warm-up (not counted)' : `Sample ${Math.min(samplesDone + 1, SAMPLE_COUNT)} of ${SAMPLE_COUNT}`}</div>
+                        <div className="mt-4 w-full h-1.5 bg-[#111118] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#E85D4E] rounded-full transition-all duration-300" style={{ width: `${((reqDone + 0.3) / (TOTAL_REQUESTS + 0.3)) * 100}%` }} />
+                        </div>
+                        <div className="mt-2 text-xs text-[#6B7280] font-['JetBrains_Mono']">
+                          {reqDone < DROPPED_REQUESTS ? 'Warm-up request (not counted)' : `Sample ${Math.min(reqDone - DROPPED_REQUESTS + 1, TIMED_REQUESTS)} of ${TIMED_REQUESTS}`}
+                        </div>
+                      </div>
+                    ) : status === 'unavailable' ? (
+                      <div className="py-2">
+                        <div className="inline-flex items-center gap-2 font-['JetBrains_Mono'] text-3xl text-[#9CA3AF]">
+                          <AlertTriangle size={26} className="text-[#FBBF24]" /> Unavailable
+                        </div>
+                        <p className="mt-3 text-xs text-[#9CA3AF] leading-relaxed">{result?.note}</p>
                       </div>
                     ) : (
                       <>
                         <div className="flex items-baseline justify-center">
-                          {pingResult !== null ? (
+                          {headline !== null ? (
                             <>
-                              <span className="font-['JetBrains_Mono'] text-6xl md:text-7xl" style={{ color: getPingColor(pingResult) }}>
-                                <CountUp end={pingResult} duration={0.5} />
+                              <span className="font-['JetBrains_Mono'] text-6xl md:text-7xl" style={{ color: latencyColor(headline) }}>
+                                <CountUp end={headline} duration={0.5} />
                               </span>
                               <span className="font-['JetBrains_Mono'] text-lg text-[#9CA3AF] ml-2">ms</span>
                             </>
@@ -328,11 +229,14 @@ const PingTestSection: React.FC = () => {
                             <span className="font-['JetBrains_Mono'] text-5xl text-[#9CA3AF]">--</span>
                           )}
                         </div>
-                        <div className="mt-2 text-sm font-medium uppercase tracking-wider" style={{ color: getPingColor(pingResult) }}>
-                          {getPingLabel(pingResult)}
+                        <div className="mt-2 text-sm font-medium uppercase tracking-wider" style={{ color: status === 'unreliable' ? '#FBBF24' : latencyColor(headline) }}>
+                          {status === 'unreliable' ? 'Unreliable' : latencyLabel(headline)}
                         </div>
-                        {pingResult !== null && result.jitter !== null && (
-                          <div className="mt-1 text-xs text-[#9CA3AF] font-['JetBrains_Mono']">{result.jitter} ms jitter</div>
+                        {stats && (
+                          <div className="mt-1 text-xs text-[#9CA3AF] font-['JetBrains_Mono']">median ± {stats.mad} ms</div>
+                        )}
+                        {status === 'unreliable' && result?.note && (
+                          <p className="mt-2 text-xs text-[#FBBF24]">{result.note}</p>
                         )}
                       </>
                     )}
@@ -345,28 +249,29 @@ const PingTestSection: React.FC = () => {
                         <span className="text-[#6B7280] text-sm shrink-0">Datacenter</span>
                         <span className="text-right">
                           <span className="block text-[#A3B8D4] text-sm font-['JetBrains_Mono']">
-                            {target ? pingTargetLabel(target) : '—'}
+                            {target ? latencyTargetLabel(target) : '—'}
                           </span>
+                          {viaFallback && primary && (
+                            <span className="block text-[11px] text-[#FBBF24]">via fallback — {latencyTargetLabel(primary)} didn&apos;t respond reliably</span>
+                          )}
                           {target && !target.inCity && (
-                            <span className="block text-[11px] text-[#6B7280]">Nearest region — none in {selected.city}</span>
+                            <span className="block text-[11px] text-[#6B7280]">Nearest {target.provider} region to {selected.city}</span>
                           )}
                         </span>
                       </div>
-                      {state === 'result' && (
+                      {stats && (
                         <>
                           <div className="flex justify-between items-center gap-3">
-                            <span className="text-[#6B7280] text-sm">Jitter</span>
-                            <span className="text-white text-sm font-['JetBrains_Mono']">{result.jitter !== null ? `${result.jitter} ms` : '—'}</span>
+                            <span className="text-[#6B7280] text-sm">Spread (MAD)</span>
+                            <span className="text-white text-sm font-['JetBrains_Mono']">± {stats.mad} ms</span>
+                          </div>
+                          <div className="flex justify-between items-center gap-3">
+                            <span className="text-[#6B7280] text-sm">Fastest</span>
+                            <span className="text-[#9CA3AF] text-sm font-['JetBrains_Mono']">{stats.min} ms</span>
                           </div>
                           <div className="flex justify-between items-center gap-3">
                             <span className="text-[#6B7280] text-sm">Samples</span>
-                            <span className="text-[#9CA3AF] text-sm font-['JetBrains_Mono']">{result.ok}/{SAMPLE_COUNT} ok · min shown</span>
-                          </div>
-                          <div className="flex justify-between items-center gap-3">
-                            <span className="text-[#6B7280] text-sm">Method</span>
-                            <span className="text-[#9CA3AF] text-sm font-['JetBrains_Mono']">
-                              {result.method === 'resource-timing' ? 'Resource Timing' : 'Warm fetch'}
-                            </span>
+                            <span className="text-[#9CA3AF] text-sm font-['JetBrains_Mono']">{stats.ok}/{stats.attempted} ok · 1st dropped</span>
                           </div>
                         </>
                       )}
@@ -384,14 +289,14 @@ const PingTestSection: React.FC = () => {
                       )}
                     </div>
                     <p className="mt-4 text-[11px] text-[#6B7280] leading-relaxed px-1">
-                      Lowest of {SAMPLE_COUNT} HTTP round trips on a warm connection to {target ? pingTargetLabel(target) : 'a cloud datacenter'}. Not ICMP.
+                      Median of {TIMED_REQUESTS} HTTPS requests on one warm connection (needs {MIN_OK_SAMPLES}+ to respond). {LATENCY_NOTE}
                     </p>
                     <div className="mt-5 flex flex-col items-center gap-3">
                       <Button
                         variant="secondary"
                         size="sm"
                         disabled={testing}
-                        onClick={() => runPingTest(selected)}
+                        onClick={() => runTest(selected)}
                       >
                         <RefreshCw size={14} className={`mr-1.5 inline ${testing ? 'motion-safe:animate-spin' : ''}`} />
                         {testing ? 'Testing…' : 'Test Again'}

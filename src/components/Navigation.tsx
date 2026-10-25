@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 const navLinks = [
   { label: 'How It Works', href: '#speed-steps' },
   { label: 'Servers', href: '#global-map' },
-  { label: 'Ping Test', href: '#ping-test' },
+  { label: 'Latency Test', href: '#ping-test' },
   { label: 'Games', href: '#games' },
   { label: 'Features', href: '#features' },
   { label: 'Reviews', href: '#testimonials' },

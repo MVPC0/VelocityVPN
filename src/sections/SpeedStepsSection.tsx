@@ -11,7 +11,7 @@ const steps = [
   { num: '03', title: 'Add a provider', desc: 'Import or paste the .conf from Proton, Windscribe, Mullvad, or any WireGuard host.', icon: '🔑' },
   { num: '04', title: 'Download .conf', desc: 'Get an import-ready WireGuard file or QR built from your provider\'s details. Nothing is invented.', icon: '📄' },
   { num: '05', title: 'Import WireGuard', desc: 'Open the official WireGuard app on your device. This website cannot hide your IP by itself.', icon: '🛡️' },
-  { num: '06', title: 'Check latency', desc: 'Browser timing to a public site in that city. Not ICMP. Not a game-server ping. A rough region hint.', icon: '📶' },
+  { num: '06', title: 'Check latency', desc: 'HTTP round-trip time from your browser to a cloud region near that city. Not ICMP ping. A region hint, not a game-server test.', icon: '📶' },
   { num: '07', title: 'Track games', desc: 'Steam player counts when the public API answers. Fortnite is an estimate. Heat-map vibes are a model, not live lobbies.', icon: '🎮' },
   { num: '08', title: 'Play', desc: 'Your ping, DDoS protection, and kill switch come from the provider and the WireGuard app - not from this dashboard.', icon: '🏆' },
 ];
