@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import {
   Activity, Server, RefreshCw, ChevronLeft, Download,
   Globe, Gamepad2, ScanLine,
-  HelpCircle, Puzzle, Key, LogIn, X,
+  HelpCircle, Puzzle, Key, X,
   Smartphone, Wifi, AlertTriangle, CheckCircle2,
   Check, Loader2, Info
 } from "lucide-react";
@@ -157,9 +157,6 @@ export default function Dashboard() {
                 <span className="text-[#A3B8D4] text-xs font-medium">Public IP changed</span>
               </div>
             )}
-            <button onClick={() => navigate("/login")} className="text-xs text-[#E85D4E] hover:text-white transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-0">
-              <LogIn size={12} /> Sign In
-            </button>
           </div>
         </div>
       </header>
@@ -174,9 +171,6 @@ export default function Dashboard() {
             <p className="text-sm text-white font-medium">Full Access</p>
             <p className="text-xs text-[#9CA3AF]">All features unlocked. Add a provider in the Providers tab to connect.</p>
           </div>
-          <button onClick={() => navigate("/login")} className="px-4 py-2 bg-[#9B6DFF] text-white rounded-lg text-xs font-medium cursor-pointer border-0 shrink-0">
-            Sign Up
-          </button>
         </div>
 
         {/* Status Card */}

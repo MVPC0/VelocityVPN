@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { useNavigate } from 'react-router';
-import { Menu, X, LayoutDashboard, LogIn } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { Menu, X, LayoutDashboard } from 'lucide-react';
 
 const navLinks = [
   { label: 'How It Works', href: '#speed-steps' },
@@ -16,8 +14,6 @@ const navLinks = [
 const Navigation: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -89,23 +85,13 @@ const Navigation: React.FC = () => {
 
           {/* CTA + Hamburger */}
           <div className="flex items-center gap-4">
-            {isAuthenticated ? (
-              <Link
-                to="/dashboard"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#E85D4E] hover:text-white transition-colors"
-              >
-                <LayoutDashboard size={16} />
-                Dashboard
-              </Link>
-            ) : (
-              <button
-                onClick={() => navigate('/login')}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#E85D4E] hover:text-white transition-colors bg-transparent border-0 cursor-pointer"
-              >
-                <LogIn size={16} />
-                Sign In
-              </button>
-            )}
+            <Link
+              to="/dashboard"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#E85D4E] hover:text-white transition-colors"
+            >
+              <LayoutDashboard size={16} />
+              Dashboard
+            </Link>
             <button
               className="lg:hidden text-white p-2"
               onClick={() => setMenuOpen(true)}
@@ -159,27 +145,14 @@ const Navigation: React.FC = () => {
           </div>
 
           {/* Auth link in menu */}
-          {isAuthenticated ? (
-            <Link
-              to="/dashboard"
-              onClick={() => setMenuOpen(false)}
-              className="mt-6 inline-flex items-center gap-2 text-[#E85D4E] hover:text-white transition-colors font-['Archivo'] text-xl"
-            >
-              <LayoutDashboard size={20} />
-              Dashboard
-            </Link>
-          ) : (
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                navigate('/login');
-              }}
-              className="mt-6 inline-flex items-center gap-2 text-[#E85D4E] hover:text-white transition-colors font-['Archivo'] text-xl bg-transparent border-0 cursor-pointer"
-            >
-              <LogIn size={20} />
-              Sign In
-            </button>
-          )}
+          <Link
+            to="/dashboard"
+            onClick={() => setMenuOpen(false)}
+            className="mt-6 inline-flex items-center gap-2 text-[#E85D4E] hover:text-white transition-colors font-['Archivo'] text-xl"
+          >
+            <LayoutDashboard size={20} />
+            Dashboard
+          </Link>
 
           {/* Social Links */}
           <div className="absolute bottom-8 left-8 md:left-16 lg:left-24 flex gap-6">
