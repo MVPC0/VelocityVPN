@@ -3,6 +3,7 @@ import SectionHeader from '@/components/SectionHeader';
 import Button from '@/components/Button';
 import CountUp from 'react-countup';
 import WorldDotMap from '@/components/WorldDotMap';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { useClosestServer } from '@/hooks/useGeoLocation';
 import { useCityLatency } from '@/hooks/useCityLatency';
 import { MAP_CITIES } from '@/lib/world-map';
@@ -144,15 +145,36 @@ const PingTestSection: React.FC = () => {
           {/* Map */}
           <div className="lg:w-[60%] relative">
             <div className="relative w-full bg-[#050507] rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden shadow-[inset_0_0_60px_rgba(155,109,255,0.04)] p-2 sm:p-3">
-              <WorldDotMap
-                cities={MAP_CITIES}
-                closestId={closestId}
-                selectedId={selected?.id ?? null}
-                onSelect={(city) => { if (!testing) runTest(city); }}
-                you={location ? { lat: location.lat, lng: location.lon } : null}
-                showRoute
-                aspect={2.2}
-              />
+              <ErrorBoundary
+                name="Latency map"
+                fallback={
+                  // Plain city list if the map canvas can't render; the test itself doesn't need it.
+                  <ul className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2">
+                    {MAP_CITIES.map((city) => (
+                      <li key={city.id}>
+                        <button
+                          type="button"
+                          disabled={testing}
+                          onClick={() => runTest(city)}
+                          className={`w-full text-left text-sm px-3 py-2 rounded-lg border border-[rgba(255,255,255,0.08)] ${city.id === selected?.id ? 'text-white bg-[rgba(255,255,255,0.06)]' : 'text-[#9CA3AF]'}`}
+                        >
+                          {city.flag} {city.city}{city.id === closestId ? ' · closest' : ''}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                }
+              >
+                <WorldDotMap
+                  cities={MAP_CITIES}
+                  closestId={closestId}
+                  selectedId={selected?.id ?? null}
+                  onSelect={(city) => { if (!testing) runTest(city); }}
+                  you={location ? { lat: location.lat, lng: location.lon } : null}
+                  showRoute
+                  aspect={2.2}
+                />
+              </ErrorBoundary>
             </div>
           </div>
 

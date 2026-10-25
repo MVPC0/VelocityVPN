@@ -2,6 +2,7 @@ import React, { useState, lazy, Suspense } from "react";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import CTASection from "@/sections/CTASection";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const HeroSection = lazy(() => import("@/sections/HeroSection"));
 const SpeedStepsSection = lazy(() => import("@/sections/SpeedStepsSection"));
@@ -49,13 +50,13 @@ const LandingPage: React.FC = () => {
       <div className={`transition-opacity duration-500 ${loading ? "opacity-0" : "opacity-100"}`}>
         <Navigation />
         <main>
-          <Suspense fallback={<SectionFallback />}><HeroSection /></Suspense>
-          <Suspense fallback={<SectionFallback />}><SpeedStepsSection /></Suspense>
-          <Suspense fallback={<SectionFallback />}><GlobalMapSection /></Suspense>
-          <Suspense fallback={<SectionFallback />}><PingTestSection /></Suspense>
-          <Suspense fallback={<SectionFallback />}><GamesSection /></Suspense>
-          <Suspense fallback={<SectionFallback />}><FeaturesRacingSection /></Suspense>
-          <Suspense fallback={<SectionFallback />}><TestimonialsSection /></Suspense>
+          <ErrorBoundary name="HeroSection"><Suspense fallback={<SectionFallback />}><HeroSection /></Suspense></ErrorBoundary>
+          <ErrorBoundary name="SpeedStepsSection"><Suspense fallback={<SectionFallback />}><SpeedStepsSection /></Suspense></ErrorBoundary>
+          <ErrorBoundary name="GlobalMapSection"><Suspense fallback={<SectionFallback />}><GlobalMapSection /></Suspense></ErrorBoundary>
+          <ErrorBoundary name="PingTestSection"><Suspense fallback={<SectionFallback />}><PingTestSection /></Suspense></ErrorBoundary>
+          <ErrorBoundary name="GamesSection"><Suspense fallback={<SectionFallback />}><GamesSection /></Suspense></ErrorBoundary>
+          <ErrorBoundary name="FeaturesRacingSection"><Suspense fallback={<SectionFallback />}><FeaturesRacingSection /></Suspense></ErrorBoundary>
+          <ErrorBoundary name="TestimonialsSection"><Suspense fallback={<SectionFallback />}><TestimonialsSection /></Suspense></ErrorBoundary>
         </main>
         <CTASection />
         <Footer />

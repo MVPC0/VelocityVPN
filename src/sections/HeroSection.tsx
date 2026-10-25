@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import * as THREE from 'three';
 import CountUp from 'react-countup';
 import { pausableRafLoop } from '@/lib/animation-pause';
+import { createWebGLRenderer, webglSupported } from '@/lib/webgl';
 
 // Brand
 const CORAL = new THREE.Color('#E85D4E');
@@ -206,17 +207,23 @@ const HeroSection: React.FC = () => {
   const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
   const scrollRef = useRef(0);
   const [loaded, setLoaded] = useState(false);
+  // No WebGL → no globe; the hero text and the rest of the page still render.
+  const [glFailed, setGlFailed] = useState(() => !webglSupported());
 
   const initGL = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const renderer = new THREE.WebGLRenderer({
+    const renderer = createWebGLRenderer({
       canvas,
       alpha: true,
       antialias: true,
       powerPreference: 'high-performance',
     });
+    if (!renderer) {
+      queueMicrotask(() => setGlFailed(true));
+      return;
+    }
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -324,6 +331,7 @@ const HeroSection: React.FC = () => {
 
   useEffect(() => {
     const cleanup = initGL();
+    if (!rendererRef.current) return cleanup;
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
 
@@ -422,13 +430,13 @@ const HeroSection: React.FC = () => {
 
   return (
     <section id="hero" className="relative w-full min-h-[100dvh] overflow-hidden">
-      <canvas
+      {!glFailed && <canvas
         ref={canvasRef}
         className={`fixed top-0 left-0 w-full h-full transition-opacity duration-1000 ${
           loaded ? 'opacity-100' : 'opacity-0'
         }`}
         style={{ zIndex: 1 }}
-      />
+      />}
 
       <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] px-6">
         <span className="text-eyebrow mb-6">DASHBOARD - NOT A CARRIER</span>

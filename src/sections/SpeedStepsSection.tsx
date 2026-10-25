@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { pausableRafLoop } from '@/lib/animation-pause';
+import { createWebGLRenderer, webglSupported } from '@/lib/webgl';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -63,6 +64,7 @@ const SpeedStepsSection: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const cubeGroupRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const [glFailed, setGlFailed] = useState(() => !webglSupported());
 
   const textures = useMemo(() => steps.map(createFaceTexture), []);
 
@@ -70,7 +72,11 @@ const SpeedStepsSection: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    const renderer = createWebGLRenderer({ canvas, alpha: true, antialias: true });
+    if (!renderer) {
+      queueMicrotask(() => setGlFailed(true));
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     rendererRef.current = renderer;
@@ -189,10 +195,22 @@ const SpeedStepsSection: React.FC = () => {
       <div className="sticky top-0 w-full h-[100dvh] flex">
         {/* Three.js Canvas */}
         <div className="w-full md:w-[60%] h-full relative">
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full"
-          />
+          {glFailed ? (
+            // No WebGL: flat card for the active step instead of the 3D cube.
+            <div className="absolute inset-0 flex items-center justify-center p-8">
+              <div className="w-full max-w-sm rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#0A0A0F] p-8 text-center">
+                <div className="text-4xl mb-4" aria-hidden>{steps[activeStep]?.icon}</div>
+                <div className="font-['JetBrains_Mono'] text-[#E85D4E] text-sm">{steps[activeStep]?.num}</div>
+                <div className="mt-2 text-white text-xl">{steps[activeStep]?.title}</div>
+                <p className="mt-3 text-sm text-[#9CA3AF]">{steps[activeStep]?.desc}</p>
+              </div>
+            </div>
+          ) : (
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full h-full"
+            />
+          )}
         </div>
 
         {/* Content Panel */}
