@@ -20,8 +20,12 @@ export async function fetchSteamCounts(appIds: number[]): Promise<SteamCounts | 
   }
 }
 
-/** The count to display for a game, or null ("—") when Steam gave no usable number. */
+/**
+ * The count to display for a game, or null ("—") when Steam gave no usable number.
+ * 0 also shows "—": Steam reports 0 for unreleased/unlisted apps, and a real 0 for a
+ * released game is very unlikely, so a "0" would only look like a broken counter.
+ */
 export function steamCount(counts: Record<string, unknown> | null | undefined, appId: number): number | null {
   const c = counts?.[String(appId)];
-  return typeof c === "number" && Number.isFinite(c) && c >= 0 ? c : null;
+  return typeof c === "number" && Number.isFinite(c) && c > 0 ? c : null;
 }

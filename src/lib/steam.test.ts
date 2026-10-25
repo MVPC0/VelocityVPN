@@ -46,6 +46,7 @@ describe("steamCount", () => {
     ["string", { 730: "123" }],
     ["NaN", { 730: NaN }],
     ["negative", { 730: -5 }],
+    ["zero (unreleased / unlisted)", { 730: 0 }],
   ])("is null for %s", (_n, counts) => {
     expect(steamCount(counts as Record<string, unknown> | null, 730)).toBeNull();
   });
