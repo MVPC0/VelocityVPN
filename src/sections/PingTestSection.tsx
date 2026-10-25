@@ -6,6 +6,7 @@ import WorldDotMap from '@/components/WorldDotMap';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useClosestServer } from '@/hooks/useGeoLocation';
 import { useCityLatency } from '@/hooks/useCityLatency';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { MAP_CITIES } from '@/lib/world-map';
 import type { MapCity } from '@/lib/world-map';
 import { primaryLatencyTarget, latencyTargetLabel, latencyHeadlineLabel, REFERENCE_DC_NOTE } from '@/data/ping-targets';
@@ -20,7 +21,7 @@ import {
   latencyColor,
   latencyLabel,
 } from '@/lib/latency';
-import { MapPin, Zap, RefreshCw, AlertTriangle } from 'lucide-react';
+import { MapPin, Zap, RefreshCw, AlertTriangle, WifiOff } from 'lucide-react';
 
 type TestState = 'idle' | 'testing' | 'result';
 
@@ -33,6 +34,7 @@ const PingTestSection: React.FC = () => {
   const { progress, result, run } = useCityLatency();
   const sparkleCanvasRef = useRef<HTMLCanvasElement>(null);
   const hasAutoRun = useRef(false);
+  const online = useOnlineStatus();
 
   const closestId = closestServer?.id ?? null;
   const isClosest = (city: MapCity) => closestId === city.id;
@@ -54,6 +56,13 @@ const PingTestSection: React.FC = () => {
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closestServer]);
+
+  // The last run failed because the device was offline: rerun it once the connection is back.
+  const wasOffline = state === 'result' && !!result?.offline;
+  useEffect(() => {
+    if (online && wasOffline && selected) runTest(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online]);
 
   const headline = state === 'result' && result?.stats ? result.stats.median : null;
 
@@ -125,7 +134,7 @@ const PingTestSection: React.FC = () => {
           ) : closestServer ? (
             <div className="inline-flex items-center gap-2 text-sm text-[#4ADE80] bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] px-4 py-2 rounded-full">
               <Zap size={14} />
-              Closest city: <strong>{closestServer.city}</strong> ({distance}mi away)
+              Closest city: <strong>{closestServer.city}</strong>{online && distance !== null && <> (~{distance}mi away)</>}
             </div>
           ) : (
             <div className="text-sm text-[#6B7280]">
@@ -187,7 +196,7 @@ const PingTestSection: React.FC = () => {
                     <div className="text-4xl mb-3">🌐</div>
                     <p className="text-[#9CA3AF] text-sm leading-relaxed max-w-[280px] mx-auto">
                       {closestServer
-                        ? `Closest: ${closestServer.city} (${distance}mi) - tap a city to test`
+                        ? `Closest: ${closestServer.city}${online && distance !== null ? ` (~${distance}mi)` : ''} - tap a city to test`
                         : 'Tap a city to measure latency'}
                     </p>
                   </div>
@@ -242,7 +251,14 @@ const PingTestSection: React.FC = () => {
                         <p className="mt-1 text-[11px] text-[#6B7280]">{REFERENCE_DC_NOTE}</p>
                       </div>
                     )}
-                    {testing ? null : status === 'unavailable' ? (
+                    {testing ? null : status === 'unavailable' && result?.offline ? (
+                      <div className="py-2" role="status">
+                        <div className="inline-flex items-center gap-2 font-['JetBrains_Mono'] text-3xl text-[#9CA3AF]">
+                          <WifiOff size={26} className="text-[#FBBF24]" /> Offline
+                        </div>
+                        <p className="mt-3 text-xs text-[#9CA3AF] leading-relaxed">{result.note}</p>
+                      </div>
+                    ) : status === 'unavailable' ? (
                       <div className="py-2">
                         <div className="inline-flex items-center gap-2 font-['JetBrains_Mono'] text-3xl text-[#9CA3AF]">
                           <AlertTriangle size={26} className="text-[#FBBF24]" /> Unavailable
@@ -317,10 +333,10 @@ const PingTestSection: React.FC = () => {
                           <span className="text-[#9CA3AF] text-xs font-['JetBrains_Mono'] truncate max-w-[200px]" title={target.url}>{hostOf(target.url)}</span>
                         </div>
                       )}
-                      {distance !== null && isClosest(selected) && (
+                      {online && distance !== null && isClosest(selected) && (
                         <div className="flex justify-between items-center gap-3">
                           <span className="text-[#6B7280] text-sm">Distance</span>
-                          <span className="text-[#4ADE80] text-sm font-['JetBrains_Mono']">{distance}mi from you</span>
+                          <span className="text-[#4ADE80] text-sm font-['JetBrains_Mono']" title="Approximate, from your IP address">~{distance}mi from you</span>
                         </div>
                       )}
                     </div>

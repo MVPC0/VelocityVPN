@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   assessSamples, formatSpread, formatSpreadPm, median, medianAbsoluteDeviation, measureCityLatency, measureTarget,
-  MIN_OK_SAMPLES, physicsFloorMs, timeRequest, TOTAL_REQUESTS, type Sample,
+  MIN_OK_SAMPLES, OFFLINE_NOTE, physicsFloorMs, timeRequest, TOTAL_REQUESTS, type Sample,
 } from './latency';
 import { cityLatencyTargets, latencyHeadlineLabel } from '@/data/ping-targets';
 
@@ -198,4 +198,41 @@ describe('display copy', () => {
     expect(latencyHeadlineLabel(OHIO_AWS)).toBe('Latency to nearest AWS region (Ohio)');
     expect(latencyHeadlineLabel(AZURE_CHICAGO, true)).toBe('Latency to Azure Chicago (fallback)');
   });
+});
+
+describe('offline', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const dead = () => vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+
+  it('says offline and sends nothing when navigator.onLine is false', async () => {
+    const f = dead();
+    vi.stubGlobal('fetch', f);
+    vi.stubGlobal('navigator', { onLine: false });
+    const r = await measureCityLatency(3);
+    expect(r.status).toBe('unavailable');
+    expect(r.offline).toBe(true);
+    expect(r.note).toBe(OFFLINE_NOTE);
+    expect(r.stats).toBeNull();
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('says offline when the connection drops mid-test (all network errors)', async () => {
+    const nav = { onLine: true };
+    vi.stubGlobal('navigator', nav);
+    vi.stubGlobal('fetch', vi.fn(async () => { nav.onLine = false; throw new TypeError('Failed to fetch'); }));
+    const r = await measureCityLatency(3);
+    expect(r.offline).toBe(true);
+    expect(r.note).toBe(OFFLINE_NOTE);
+    expect(r.attempts).toHaveLength(2);
+  });
+
+  it('still blames the endpoints when online and everything fails', async () => {
+    vi.stubGlobal('navigator', { onLine: true });
+    vi.stubGlobal('fetch', dead());
+    const r = await measureCityLatency(3);
+    expect(r.status).toBe('unavailable');
+    expect(r.offline).toBeFalsy();
+    expect(r.note).toMatch(/No reliable response from/);
+  });
+
 });

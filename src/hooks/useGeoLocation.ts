@@ -87,7 +87,10 @@ async function getLocationFromIP(): Promise<GeoLocation | null> {
 // One lookup per page load, shared by the closest-city badge and the
 // latency test's speed-of-light floor.
 let locationPromise: Promise<GeoLocation | null> | null = null;
-export function getVisitorLocation(): Promise<GeoLocation | null> {
+export function getVisitorLocation(force = false): Promise<GeoLocation | null> {
+  // A new network (Wi-Fi → cellular, or back online) usually means a new IP
+  // and a different IP location, so callers can ask for a fresh lookup.
+  if (force) locationPromise = null;
   if (!locationPromise) {
     locationPromise = getLocationFromIP().then((loc) => {
       if (!loc) locationPromise = null; // allow a retry later
@@ -103,10 +106,12 @@ export function useClosestServer(servers: ServerLocation[]) {
   const [distance, setDistance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const detect = useCallback(async () => {
+  const detect = useCallback(async (force = false) => {
     setLoading(true);
-    const loc = await getVisitorLocation();
+    const loc = await getVisitorLocation(force);
     setLocation(loc);
+    // Don't keep showing a distance from an earlier lookup (e.g. while offline).
+    if (!loc) setDistance(null);
     
     if (loc && servers.length > 0) {
       let closest = servers[0];
@@ -131,6 +136,13 @@ export function useClosestServer(servers: ServerLocation[]) {
     if (servers.length > 0) {
       detect();
     }
+  }, [servers, detect]);
+
+  // Back online: look the location up again, since the network may have changed.
+  useEffect(() => {
+    const onOnline = () => { if (servers.length > 0) detect(true); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
   }, [servers, detect]);
 
   return { location, closestServer, distance, loading, detect };

@@ -144,6 +144,19 @@ export interface LatencyResult {
   attempts: TargetAttempt[];
   /** Short user-facing reason for `unreliable` / `unavailable`. */
   note: string | null;
+  /** True when the device was offline, so no endpoint was (or could be) reached. */
+  offline?: boolean;
+}
+
+export const OFFLINE_NOTE = "You're offline — connect to run the test.";
+
+/** The browser reports no network connection (navigator.onLine is only trusted when false). */
+export function isBrowserOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function offlineResult(target: LatencyTarget | null, attempts: TargetAttempt[] = []): LatencyResult {
+  return { status: 'unavailable', stats: null, target, viaFallback: false, attempts, note: OFFLINE_NOTE, offline: true };
 }
 
 export interface MeasureProgress {
@@ -411,11 +424,15 @@ async function measureCityLatencyInner(cityId: number, opts: MeasureOptions): Pr
   const targets = cityLatencyTargets(cityId);
   const attempts: TargetAttempt[] = [];
   let shaky: TargetAttempt | null = null;
+  // No point timing anything with no connection; say so instead of blaming the endpoints.
+  if (isBrowserOffline()) return offlineResult(targets[0] ?? null);
+  let allNetworkErrors = targets.length > 0;
 
   for (let i = 0; i < targets.length; i++) {
     if (opts.signal?.aborted) break;
     const target = targets[i];
     const samples = await measureTarget(target, { ...opts, targetIndex: i });
+    if (!samples.length || samples.some((s) => s.ms !== null || s.error !== 'network error')) allNetworkErrors = false;
     const { stats, failure, inconsistent } = assessSamples(samples, physicsFloorMs(opts.from, target));
     const attempt: TargetAttempt = { target, stats, failure: failure ?? (inconsistent ? 'inconsistent samples' : null) };
     attempts.push(attempt);
@@ -436,6 +453,9 @@ async function measureCityLatencyInner(cityId: number, opts: MeasureOptions): Pr
     };
   }
   const last = attempts[attempts.length - 1] ?? null;
+  // Every request failed at the network layer and the browser now says it's
+  // offline (e.g. the connection dropped mid-test): report that, not the endpoints.
+  if (allNetworkErrors && isBrowserOffline()) return offlineResult(targets[0] ?? null, attempts);
   const physics = attempts.some((a) => a.failure?.startsWith('faster than physically'));
   return {
     status: 'unavailable',

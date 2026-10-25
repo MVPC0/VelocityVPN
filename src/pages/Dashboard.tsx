@@ -88,6 +88,9 @@ async function measureCities(ids: number[], concurrency = 3) {
 
 function LatencyBadge({ result }: { result: LatencyResult | undefined }) {
   if (!result) return <div className="text-xs text-[#6B7280]">-- ms</div>;
+  if (result.offline) {
+    return <div className="text-xs text-[#9CA3AF]" title={result.note ?? undefined}>Offline</div>;
+  }
   if (result.status === "unavailable" || !result.stats) {
     return <div className="text-xs text-[#FBBF24]" title={result.note ?? undefined}>Unavailable</div>;
   }
