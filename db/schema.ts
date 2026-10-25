@@ -12,7 +12,7 @@ import {
 // ─── OAuth Users ──────────────────────────────────────────────
 
 export const users = mysqlTable("users", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   unionId: varchar("unionId", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 320 }),
@@ -32,13 +32,15 @@ export type InsertUser = typeof users.$inferInsert;
 // ─── Email Auth Users ─────────────────────────────────────────
 
 export const emailUsers = mysqlTable("email_users", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   email: varchar("email", { length: 320 }).notNull().unique(),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   verified: boolean("verified").default(false).notNull(),
   verificationCode: varchar("verification_code", { length: 10 }),
+  verifyAttempts: int("verify_attempts").default(0).notNull(),
+  codeExpiresAt: timestamp("code_expires_at"),
   // Trial fields
   trialStartedAt: timestamp("trial_started_at"),
   trialDays: int("trial_days").default(3).notNull(),
@@ -54,7 +56,7 @@ export type InsertEmailUser = typeof emailUsers.$inferInsert;
 // ─── VPN Server nodes ─────────────────────────────────────────
 
 export const vpnServers = mysqlTable("vpn_servers", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
   city: varchar("city", { length: 100 }).notNull(),
   country: varchar("country", { length: 100 }).notNull(),
@@ -80,7 +82,7 @@ export type InsertVpnServer = typeof vpnServers.$inferInsert;
 // ─── User VPN connections ─────────────────────────────────────
 
 export const userConnections = mysqlTable("user_connections", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
   serverId: bigint("server_id", { mode: "number", unsigned: true }).notNull(),
   status: mysqlEnum("status", ["connected", "disconnected", "connecting", "error"]).default("disconnected").notNull(),
@@ -101,7 +103,7 @@ export type InsertUserConnection = typeof userConnections.$inferInsert;
 // ─── Ping results ─────────────────────────────────────────────
 
 export const pingResults = mysqlTable("ping_results", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   serverId: bigint("server_id", { mode: "number", unsigned: true }).notNull(),
   latency: int("latency").notNull(),
   jitter: int("jitter").default(0),
@@ -113,7 +115,7 @@ export const pingResults = mysqlTable("ping_results", {
 // ─── Server Monitoring (real-time data) ─────────────────────
 
 export const serverMonitoring = mysqlTable("server_monitoring", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   serverId: int("server_id").notNull(),
   latency: int("latency").notNull(),
   playerCount: int("player_count").default(0).notNull(),
@@ -126,7 +128,7 @@ export type ServerMonitoring = typeof serverMonitoring.$inferSelect;
 // ─── Game Events (live boosts) ───────────────────────────────
 
 export const gameEvents = mysqlTable("game_events", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().notNull(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   gameName: varchar("game_name", { length: 100 }).notNull(),
   eventName: varchar("event_name", { length: 200 }).notNull(),
   description: text("description"),

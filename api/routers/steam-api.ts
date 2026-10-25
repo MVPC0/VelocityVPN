@@ -58,7 +58,7 @@ async function fetchPlayerCount(appId: number): Promise<number> {
 
     if (!res.ok) return 0;
 
-    const data = await res.json();
+    const data = (await res.json()) as { response?: { player_count?: number } };
     return data?.response?.player_count ?? 0;
   } catch {
     return 0;

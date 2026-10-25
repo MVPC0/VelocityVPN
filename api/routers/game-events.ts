@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "../middleware";
+import { createRouter, publicQuery, adminMutation } from "../middleware";
 import { getDb } from "../queries/connection";
 import { gameEvents } from "@db/schema";
-import { sql, and, gte, lte, eq } from "drizzle-orm";
+import { and, gte, lte, eq } from "drizzle-orm";
 
 // ─── Preset Live Game Events ──────────────────────────────────
 // These simulate what popular games are doing right now
@@ -147,16 +147,21 @@ export const gameEventsRouter = createRouter({
   }),
 
   // Create a new game event (admin feature)
-  create: publicQuery
+  create: adminMutation
     .input(
-      z.object({
-        gameName: z.string().min(1),
-        eventName: z.string().min(1),
-        description: z.string().optional(),
-        multiplier: z.number().min(100).max(300),
-        startDate: z.string().datetime(),
-        endDate: z.string().datetime(),
-      })
+      z
+        .object({
+          gameName: z.string().trim().min(1).max(100),
+          eventName: z.string().trim().min(1).max(200),
+          description: z.string().max(2000).optional(),
+          multiplier: z.number().int().min(100).max(300),
+          startDate: z.string().datetime(),
+          endDate: z.string().datetime(),
+        })
+        .refine((v) => new Date(v.startDate) < new Date(v.endDate), {
+          message: "startDate must be before endDate",
+          path: ["endDate"],
+        })
     )
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -173,14 +178,14 @@ export const gameEventsRouter = createRouter({
     }),
 
   // Deactivate an event
-  deactivate: publicQuery
-    .input(z.object({ id: z.number() }))
+  deactivate: adminMutation
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = getDb();
       await db
         .update(gameEvents)
         .set({ isActive: false })
-        .where(sql`id = ${input.id}`);
+        .where(eq(gameEvents.id, input.id));
       return { success: true };
     }),
 });

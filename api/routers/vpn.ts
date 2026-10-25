@@ -4,8 +4,9 @@ import { getDb } from "../queries/connection";
 import { vpnServers, userConnections, pingResults } from "../../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { randomInt } from "crypto";
 
-let seeded = false;
+let seedPromise: Promise<void> | null = null;
 
 const DEFAULT_SERVERS = [
   { name: "US-East-1", city: "New York", country: "United States", countryCode: "US", region: "north_america", hostname: "ny-us.velocityvpn.com", ipAddress: "192.168.1.10", port: 51820, protocol: "wireguard" as const, publicKey: "NY_KEY_001", lat: "40.7128", lng: "-74.0060" },
@@ -27,11 +28,20 @@ const PING_BASE: Record<string, number> = {
   "sto-se.velocityvpn.com": 25,
 };
 
-async function ensureSeeded() {
-  if (seeded) return;
-  seeded = true;
+function ensureSeeded(): Promise<void> {
+  // Memoize the in-flight seed so concurrent callers share it; reset on failure to retry later
+  if (!seedPromise) {
+    seedPromise = seedServers().catch((e) => {
+      seedPromise = null;
+      console.error("Seed error:", e);
+    });
+  }
+  return seedPromise;
+}
+
+async function seedServers() {
   const db = getDb();
-  try {
+  {
     const existing = await db.select().from(vpnServers).limit(1);
     if (existing.length > 0) return;
     for (const s of DEFAULT_SERVERS) {
@@ -45,54 +55,39 @@ async function ensureSeeded() {
         jitter: Math.floor(Math.random() * 4) + 1, packetLoss: 0,
       });
     }
-  } catch (e) {
-    console.error("Seed error:", e);
   }
 }
 
-// Real HTTP-based ping measurement to a server hostname
-async function measurePing(hostname: string, port: number): Promise<{ latency: number; jitter: number }> {
+// HTTP-based timing probe to a server hostname. A fast connection refusal still gives a
+// round-trip estimate; a timeout means the host is unreachable and yields null.
+async function probe(hostname: string, port: number, timeoutMs: number): Promise<number | null> {
   const start = Date.now();
   try {
-    // Use fetch with a HEAD request to measure actual network latency
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
     await fetch(`http://${hostname}:${port}`, {
       method: "HEAD",
-      signal: controller.signal,
-    }).catch(() => {
-      // Expected to fail (VPN port won't respond to HTTP)
-      // We just want to measure the TCP connection time
+      signal: AbortSignal.timeout(timeoutMs),
     });
-
-    clearTimeout(timeout);
-    const latency = Date.now() - start;
-
-    // Take multiple samples for jitter calculation
-    const samples: number[] = [];
-    for (let i = 0; i < 3; i++) {
-      const sStart = Date.now();
-      try {
-        const c = new AbortController();
-        const t = setTimeout(() => c.abort(), 3000);
-        await fetch(`http://${hostname}:${port}`, {
-          method: "HEAD",
-          signal: c.signal,
-        }).catch(() => {});
-        clearTimeout(t);
-        samples.push(Date.now() - sStart);
-      } catch {
-        samples.push(latency);
-      }
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      return null;
     }
-
-    const jitter = Math.max(...samples) - Math.min(...samples);
-    return { latency: Math.min(latency, 999), jitter: Math.min(jitter, 99) };
-  } catch {
-    // Fallback: return a reasonable estimate based on geographic distance simulation
-    return { latency: Math.floor(Math.random() * 40) + 20, jitter: Math.floor(Math.random() * 5) + 1 };
+    // Connection refused/reset: still a valid round-trip timing
   }
+  return Date.now() - start;
+}
+
+async function measurePing(hostname: string, port: number): Promise<{ latency: number; jitter: number } | null> {
+  const latency = await probe(hostname, port, 5000);
+  if (latency === null) return null;
+
+  // Take multiple samples for jitter calculation
+  const samples: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    const sample = await probe(hostname, port, 3000);
+    if (sample !== null) samples.push(sample);
+  }
+  const jitter = samples.length > 1 ? Math.max(...samples) - Math.min(...samples) : 0;
+  return { latency: Math.min(latency, 999), jitter: Math.min(jitter, 99) };
 }
 
 export const vpnRouter = createRouter({
@@ -155,8 +150,8 @@ export const vpnRouter = createRouter({
     }),
 
   // Measure real ping to a server and store the result
-  measurePing: publicQuery
-    .input(z.object({ serverId: z.number() }))
+  measurePing: authedMutation
+    .input(z.object({ serverId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = getDb();
       const server = await db
@@ -167,7 +162,11 @@ export const vpnRouter = createRouter({
 
       if (!server[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
 
-      const { latency, jitter } = await measurePing(server[0].hostname, server[0].port);
+      const result = await measurePing(server[0].hostname, server[0].port);
+      if (!result) {
+        return { latency: null, jitter: null, serverId: input.serverId, reachable: false };
+      }
+      const { latency, jitter } = result;
 
       // Store the result
       await db.insert(pingResults).values({
@@ -177,7 +176,7 @@ export const vpnRouter = createRouter({
         packetLoss: 0,
       });
 
-      return { latency, jitter, serverId: input.serverId };
+      return { latency, jitter, serverId: input.serverId, reachable: true };
     }),
 
   // Connect to a VPN server (authenticated)
@@ -220,7 +219,8 @@ export const vpnRouter = createRouter({
       if (!server[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
 
       // Generate a VPN config for the user
-      const assignedIp = `10.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 253) + 1}`;
+      // 10.8.0.0/16 client pool (host octet 2-254; .1 reserved for the server)
+      const assignedIp = `10.8.${randomInt(0, 256)}.${randomInt(2, 255)}`;
 
       // Get client IP from request headers
       const forwardedFor = ctx.req.headers.get("x-forwarded-for");
@@ -249,11 +249,12 @@ export const vpnRouter = createRouter({
         server: server[0],
         assignedIp,
         config: {
-          privateKey: `[Generated for user ${userId}]`,
+          // The client generates its own private key; the server never sees it
+          privateKey: null,
           address: `${assignedIp}/32`,
           dns: "1.1.1.1, 8.8.8.8",
           endpoint: `${server[0].hostname}:${server[0].port}`,
-          publicKey: server[0].publicKey ?? `[Server ${server[0].id} Public Key]`,
+          publicKey: server[0].publicKey ?? null,
           allowedIPs: "0.0.0.0/0, ::/0",
         },
       };
@@ -279,18 +280,13 @@ export const vpnRouter = createRouter({
 
     const duration = Math.floor((Date.now() - active[0].connectedAt!.getTime()) / 1000);
 
-    // Simulate data usage
-    const bytesSent = Math.floor(Math.random() * 500000000) + 1000000;
-    const bytesReceived = Math.floor(Math.random() * 2000000000) + 5000000;
-
     await db
       .update(userConnections)
       .set({
         status: "disconnected",
         disconnectedAt: new Date(),
         duration,
-        bytesSent,
-        bytesReceived,
+        // Byte counters are not tracked server-side yet; keep the stored values
       })
       .where(eq(userConnections.id, active[0].id));
 
@@ -300,7 +296,12 @@ export const vpnRouter = createRouter({
       .set({ load: sql`GREATEST(0, ${vpnServers.load} - 1)` })
       .where(eq(vpnServers.id, active[0].serverId));
 
-    return { success: true, duration, bytesSent, bytesReceived };
+    return {
+      success: true,
+      duration,
+      bytesSent: active[0].bytesSent ?? 0,
+      bytesReceived: active[0].bytesReceived ?? 0,
+    };
   }),
 
   // Get current connection status (authenticated)

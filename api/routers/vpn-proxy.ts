@@ -2,6 +2,10 @@ import { z } from "zod";
 import { createRouter, authedMutation, authedQuery } from "../middleware";
 import { TRPCError } from "@trpc/server";
 import { VELOCITY_SERVERS } from "../../src/data/velocity-servers";
+import { assertPublicUrl } from "../lib/net-guard";
+
+const MAX_PROXY_BODY_BYTES = 2 * 1024 * 1024;
+const STRIP_RESPONSE_HEADERS = ["set-cookie", "set-cookie2"];
 
 // ─── VPN Proxy Router ─────────────────────────────────────────
 // Provides a real HTTP proxy tunnel for authenticated premium users.
@@ -140,8 +144,8 @@ export const vpnProxyRouter = createRouter({
         method: z
           .enum(["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"])
           .default("GET"),
-        headers: z.record(z.string()).optional().default({}),
-        body: z.string().optional(),
+        headers: z.record(z.string(), z.string()).optional().default({}),
+        body: z.string().max(1_000_000).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -163,48 +167,69 @@ export const vpnProxyRouter = createRouter({
         });
       }
 
+      // SSRF guard: only public http(s) destinations
+      let target: URL;
+      try {
+        target = await assertPublicUrl(input.url);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Destination not allowed",
+        });
+      }
+
       const startTime = Date.now();
 
-      try {
-        // Build headers - strip sensitive ones, add proxy identifier
-        const headers: Record<string, string> = {};
-        for (const [key, value] of Object.entries(input.headers)) {
-          if (!STRIP_HEADERS.includes(key.toLowerCase())) {
-            headers[key] = value;
-          }
+      // Build headers - strip sensitive ones, add proxy identifier
+      const headers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(input.headers ?? {})) {
+        if (!STRIP_HEADERS.includes(key.toLowerCase())) {
+          headers[key] = value;
         }
+      }
+      headers["X-Forwarded-By"] = "VelocityVPN-Proxy";
+      headers["X-VPN-Server"] = session.serverName;
 
-        // Add proxy identification headers
-        headers["X-Forwarded-By"] = "VelocityVPN-Proxy";
-        headers["X-VPN-Server"] = session.serverName;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PROXY_TIMEOUT);
 
-        // Make the actual HTTP request
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), PROXY_TIMEOUT);
-
-        const response = await fetch(input.url, {
+      try {
+        // redirect: "manual" so a public URL can't bounce us to an internal one
+        const response = await fetch(target, {
           method: input.method,
           headers,
           body: input.body || undefined,
           signal: controller.signal,
-          // @ts-ignore - next.js/node fetch extensions
-          redirect: "follow",
+          redirect: "manual",
         });
 
-        clearTimeout(timeout);
-
-        const responseBody = await response.text();
+        const declared = Number(response.headers.get("content-length") || 0);
+        if (declared > MAX_PROXY_BODY_BYTES) {
+          await response.body?.cancel();
+          throw new Error("Response too large");
+        }
+        const buf = await response.arrayBuffer();
+        if (buf.byteLength > MAX_PROXY_BODY_BYTES) {
+          throw new Error("Response too large");
+        }
+        const responseBody = new TextDecoder().decode(buf);
         const responseTime = Date.now() - startTime;
 
         // Update session stats
         session.requestCount++;
-        session.bytesTransferred +=
-          (input.body?.length || 0) + responseBody.length;
+        session.bytesTransferred += (input.body?.length || 0) + buf.byteLength;
+
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          if (!STRIP_RESPONSE_HEADERS.includes(key.toLowerCase())) {
+            responseHeaders[key] = value;
+          }
+        });
 
         return {
           status: response.status,
           statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
+          headers: responseHeaders,
           body: responseBody,
           responseTime,
         };
@@ -216,6 +241,8 @@ export const vpnProxyRouter = createRouter({
               ? `Proxy fetch failed: ${error.message}`
               : "Proxy fetch failed",
         });
+      } finally {
+        clearTimeout(timeout);
       }
     }),
 
@@ -248,17 +275,18 @@ export const vpnProxyRouter = createRouter({
       // Fetch IP through our proxy (backend's IP is what the destination sees)
       const res = await fetch("https://ipapi.co/json/", {
         headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
       });
-      const data = await res.json();
+      const data = (await res.json()) as Record<string, string | undefined>;
 
       return {
-        ip: data.ip as string,
-        city: data.city as string,
-        region: data.region as string,
-        country: data.country as string,
-        countryCode: data.country_code as string,
-        org: data.org as string,
-        timezone: data.timezone as string,
+        ip: data.ip ?? "unknown",
+        city: data.city ?? "unknown",
+        region: data.region ?? "unknown",
+        country: data.country ?? "unknown",
+        countryCode: data.country_code ?? "",
+        org: data.org ?? "unknown",
+        timezone: data.timezone ?? "unknown",
         viaVpn: true,
         vpnServer: sessionServer,
       };

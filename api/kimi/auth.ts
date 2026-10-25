@@ -1,10 +1,11 @@
 import type { Context } from "hono";
-import { setCookie } from "hono/cookie";
+import { setCookie, getCookie, deleteCookie } from "hono/cookie";
+import { timingSafeEqual } from "crypto";
 import * as jose from "jose";
 import * as cookie from "cookie";
 import { env } from "../lib/env";
 import { getSessionCookieOptions } from "../lib/cookies";
-import { Session } from "@contracts/constants";
+import { Paths, Session } from "@contracts/constants";
 import { Errors } from "@contracts/errors";
 import { signSessionToken, verifySessionToken } from "./session";
 import { users as kimiUsers } from "./platform";
@@ -71,6 +72,46 @@ export async function authenticateRequest(headers: Headers) {
   return user;
 }
 
+export const OAUTH_NONCE_COOKIE = "oauth_nonce";
+
+/** Redirect URIs we are willing to send to the token endpoint. */
+function allowedRedirectUris(requestUrl: string): Set<string> {
+  const allowed = new Set<string>();
+  const origins = [new URL(requestUrl).origin];
+  if (process.env.APP_URL) origins.push(new URL(process.env.APP_URL).origin);
+  for (const origin of origins) allowed.add(`${origin}${Paths.oauthCallback}`);
+  for (const extra of (process.env.OAUTH_REDIRECT_ALLOWLIST || "").split(",")) {
+    if (extra.trim()) allowed.add(extra.trim());
+  }
+  return allowed;
+}
+
+/**
+ * State is either base64(JSON {redirectUri, nonce}) or legacy base64(redirectUri).
+ * The nonce, when present, must match the HttpOnly cookie set by the login initiator.
+ */
+function parseState(state: string): { redirectUri: string; nonce?: string } {
+  const decoded = atob(state);
+  try {
+    const parsed = JSON.parse(decoded) as { redirectUri?: unknown; nonce?: unknown };
+    if (typeof parsed.redirectUri === "string") {
+      return {
+        redirectUri: parsed.redirectUri,
+        nonce: typeof parsed.nonce === "string" ? parsed.nonce : undefined,
+      };
+    }
+  } catch {
+    // legacy format
+  }
+  return { redirectUri: decoded };
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
 export function createOAuthCallbackHandler() {
   return async (c: Context) => {
     const code = c.req.query("code");
@@ -93,7 +134,21 @@ export function createOAuthCallbackHandler() {
     }
 
     try {
-      const redirectUri = atob(state);
+      let parsedState: { redirectUri: string; nonce?: string };
+      try {
+        parsedState = parseState(state);
+      } catch {
+        return c.json({ error: "Invalid state" }, 400);
+      }
+      const { redirectUri, nonce } = parsedState;
+      if (!allowedRedirectUris(c.req.url).has(redirectUri)) {
+        return c.json({ error: "Invalid redirect URI" }, 400);
+      }
+      const cookieNonce = getCookie(c, OAUTH_NONCE_COOKIE);
+      if ((nonce || cookieNonce) && !(nonce && cookieNonce && safeEqual(nonce, cookieNonce))) {
+        return c.json({ error: "Invalid OAuth state" }, 400);
+      }
+      if (cookieNonce) deleteCookie(c, OAUTH_NONCE_COOKIE, { path: "/" });
       const tokenResp = await exchangeAuthCode(code, redirectUri);
       const { userId } = await verifyAccessToken(tokenResp.access_token);
       const userProfile = await kimiUsers.getProfile(tokenResp.access_token);

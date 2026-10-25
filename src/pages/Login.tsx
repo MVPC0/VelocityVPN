@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
 import {
   Shield, Mail, Lock, User, ArrowLeft,
-  Zap, LogIn, UserCircle
+  Zap, UserCircle
 } from "lucide-react";
 
 type AuthView = "login" | "signup" | "verify";
@@ -17,7 +17,6 @@ export default function Login() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [devCode, setDevCode] = useState("");
 
   const loginMutation = trpc.emailAuth.login.useMutation({
     onSuccess: (data) => {
@@ -32,7 +31,6 @@ export default function Login() {
   const signupMutation = trpc.emailAuth.signup.useMutation({
     onSuccess: (data) => {
       setMessage(data.message);
-      setDevCode(data.code || "");
       setView("verify");
     },
     onError: (err) => setError(err.message),
@@ -50,8 +48,7 @@ export default function Login() {
 
   const resendMutation = trpc.emailAuth.resendCode.useMutation({
     onSuccess: (data) => {
-      setDevCode(data.code || "");
-      setMessage("New code sent!");
+      setMessage(data.message);
     },
     onError: (err) => setError(err.message),
   });
@@ -86,7 +83,6 @@ export default function Login() {
   const clearAll = () => {
     setError("");
     setMessage("");
-    setDevCode("");
     setCode("");
   };
 
@@ -229,7 +225,7 @@ export default function Login() {
                     <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
                     <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                       className="w-full bg-[#111118] border border-[rgba(255,255,255,0.08)] rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-[#6B7280] focus:outline-none focus:border-[#E85D4E] transition-colors"
-                      placeholder="Min 6 characters" required minLength={6} />
+                      placeholder="Min 8 characters" required minLength={8} />
                   </div>
                 </div>
                 {error && (
@@ -270,13 +266,6 @@ export default function Login() {
                 </p>
               </div>
 
-              {devCode && (
-                <div className="mb-4 bg-[rgba(74,222,128,0.1)] border border-[rgba(74,222,128,0.2)] rounded-lg p-3 text-center">
-                  <p className="text-xs text-[#4ADE80]">Your verification code is:</p>
-                  <p className="text-2xl font-['JetBrains_Mono'] font-bold text-[#4ADE80] tracking-[0.2em]">{devCode}</p>
-                  <p className="text-[10px] text-[#4ADE80] opacity-60 mt-1">(In production this would be sent via email)</p>
-                </div>
-              )}
 
               <form onSubmit={handleVerify} className="space-y-4">
                 <div>

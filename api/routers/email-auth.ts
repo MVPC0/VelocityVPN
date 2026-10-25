@@ -2,29 +2,62 @@ import { z } from "zod";
 import { createRouter, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { emailUsers } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { SignJWT, jwtVerify } from "jose";
-import { randomBytes, pbkdf2Sync } from "crypto";
+import { randomBytes, randomInt, pbkdf2, timingSafeEqual } from "crypto";
+import { promisify } from "util";
+import { getAuthSecret } from "../lib/auth-secret";
+import { canDeliverVerification, sendVerificationEmail } from "../lib/mailer";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.EMAIL_AUTH_SECRET || "velocityvpn-email-auth-secret-key-2024"
-);
+const pbkdf2Async = promisify(pbkdf2);
+const PBKDF2_ITERATIONS = 210_000;
+const LEGACY_ITERATIONS = 10_000;
+const MAX_VERIFY_ATTEMPTS = 5;
+const CODE_TTL_MS = 15 * 60 * 1000;
 
-function hashPassword(password: string): string {
+const emailSchema = z.string().trim().toLowerCase().email("Invalid email address").max(320);
+
+async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
-  const hash = pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
-  return `${salt}:${hash}`;
+  const hash = await pbkdf2Async(password, salt, PBKDF2_ITERATIONS, 64, "sha512");
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${salt}$${hash.toString("hex")}`;
 }
 
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(":");
-  const check = pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
-  return hash === check;
+/** Supports the current `pbkdf2$iter$salt$hash` format and the legacy `salt:hash` (10k) format. */
+async function verifyPassword(password: string, stored: string): Promise<{ ok: boolean; legacy: boolean }> {
+  let salt: string | undefined;
+  let hashHex: string | undefined;
+  let iterations: number;
+  let legacy = false;
+  if (stored.startsWith("pbkdf2$")) {
+    const [, iter, s, h] = stored.split("$");
+    iterations = Number(iter);
+    salt = s;
+    hashHex = h;
+  } else {
+    [salt, hashHex] = stored.split(":");
+    iterations = LEGACY_ITERATIONS;
+    legacy = true;
+  }
+  if (!salt || !hashHex || !Number.isFinite(iterations) || iterations <= 0) {
+    return { ok: false, legacy };
+  }
+  const expected = Buffer.from(hashHex, "hex");
+  const check = await pbkdf2Async(password, salt, iterations, 64, "sha512");
+  const ok = expected.length === check.length && timingSafeEqual(expected, check);
+  return { ok, legacy };
 }
 
 function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 1000000).toString();
+}
+
+function codesMatch(a: string | null, b: string): boolean {
+  if (!a) return false;
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
 async function createToken(userId: number): Promise<string> {
@@ -32,15 +65,33 @@ async function createToken(userId: number): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(JWT_SECRET);
+    .sign(getAuthSecret());
 }
 
-export async function verifyEmailToken(token: string) {
+export async function verifyEmailToken(token: string): Promise<number | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET, { clockTolerance: 60 });
-    return payload.sub ? parseInt(payload.sub, 10) : null;
+    const { payload } = await jwtVerify(token, getAuthSecret(), { clockTolerance: 60 });
+    if (payload.type !== "email" || !payload.sub) return null;
+    const id = parseInt(payload.sub, 10);
+    return Number.isFinite(id) ? id : null;
   } catch {
     return null;
+  }
+}
+
+async function requireEmailUserId(headers: Headers): Promise<number> {
+  const token = headers.get("x-email-auth-token");
+  const userId = token ? await verifyEmailToken(token) : null;
+  if (!userId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not signed in" });
+  return userId;
+}
+
+function assertCanSendEmail() {
+  if (!canDeliverVerification()) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Email verification is temporarily unavailable. Please try again later.",
+    });
   }
 }
 
@@ -74,16 +125,17 @@ export const emailAuthRouter = createRouter({
   signup: publicQuery
     .input(
       z.object({
-        email: z.string().email("Invalid email address"),
-        password: z.string().min(6, "Password must be at least 6 characters"),
-        name: z.string().min(1, "Name is required"),
+        email: emailSchema,
+        password: z.string().min(8, "Password must be at least 8 characters").max(200),
+        name: z.string().trim().min(1, "Name is required").max(255),
       })
     )
     .mutation(async ({ input }) => {
+      assertCanSendEmail();
       const db = getDb();
 
       const existing = await db
-        .select()
+        .select({ id: emailUsers.id })
         .from(emailUsers)
         .where(eq(emailUsers.email, input.email))
         .limit(1);
@@ -96,31 +148,42 @@ export const emailAuthRouter = createRouter({
       }
 
       const code = generateCode();
-      const passwordHash = hashPassword(input.password);
+      const passwordHash = await hashPassword(input.password);
 
-      const result = await db.insert(emailUsers).values({
-        email: input.email,
-        passwordHash,
-        name: input.name,
-        verificationCode: code,
-        verified: false,
-      });
+      let userId: number;
+      try {
+        const result = await db.insert(emailUsers).values({
+          email: input.email,
+          passwordHash,
+          name: input.name,
+          verificationCode: code,
+          verifyAttempts: 0,
+          codeExpiresAt: new Date(Date.now() + CODE_TTL_MS),
+          verified: false,
+        });
+        userId = Number(result[0].insertId);
+      } catch (err) {
+        // Unique constraint on email closes the check-then-insert race
+        if ((err as { code?: string }).code === "ER_DUP_ENTRY") {
+          throw new TRPCError({ code: "CONFLICT", message: "An account with this email already exists" });
+        }
+        throw err;
+      }
 
-      const userId = Number(result[0].insertId);
+      await sendVerificationEmail(input.email, code);
 
       return {
         success: true,
         userId,
         message: "Account created. Check your email for the verification code.",
-        code,
       };
     }),
 
   verify: publicQuery
     .input(
       z.object({
-        email: z.string().email(),
-        code: z.string().length(6),
+        email: emailSchema,
+        code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
       })
     )
     .mutation(async ({ input }) => {
@@ -133,14 +196,26 @@ export const emailAuthRouter = createRouter({
         .limit(1);
 
       if (user.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid verification code" });
       }
 
       if (user[0].verified) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Already verified" });
       }
 
-      if (user[0].verificationCode !== input.code) {
+      const expired = !user[0].codeExpiresAt || user[0].codeExpiresAt.getTime() < Date.now();
+      if (user[0].verifyAttempts >= MAX_VERIFY_ATTEMPTS || expired) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "This code has expired or too many attempts were made. Request a new code.",
+        });
+      }
+
+      if (!codesMatch(user[0].verificationCode, input.code)) {
+        await db
+          .update(emailUsers)
+          .set({ verifyAttempts: sql`${emailUsers.verifyAttempts} + 1` })
+          .where(eq(emailUsers.id, user[0].id));
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid verification code" });
       }
 
@@ -150,6 +225,8 @@ export const emailAuthRouter = createRouter({
         .set({
           verified: true,
           verificationCode: null,
+          verifyAttempts: 0,
+          codeExpiresAt: null,
           trialStartedAt: new Date(),
         })
         .where(eq(emailUsers.id, user[0].id));
@@ -166,8 +243,8 @@ export const emailAuthRouter = createRouter({
   login: publicQuery
     .input(
       z.object({
-        email: z.string().email(),
-        password: z.string(),
+        email: emailSchema,
+        password: z.string().max(200),
       })
     )
     .mutation(async ({ input }) => {
@@ -186,6 +263,14 @@ export const emailAuthRouter = createRouter({
         });
       }
 
+      const { ok, legacy } = await verifyPassword(input.password, user[0].passwordHash);
+      if (!ok) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Invalid email or password",
+        });
+      }
+
       if (!user[0].verified) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
@@ -193,16 +278,13 @@ export const emailAuthRouter = createRouter({
         });
       }
 
-      if (!verifyPassword(input.password, user[0].passwordHash)) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Invalid email or password",
-        });
-      }
-
       await db
         .update(emailUsers)
-        .set({ lastSignInAt: new Date() })
+        .set({
+          lastSignInAt: new Date(),
+          // Transparently upgrade legacy 10k-iteration hashes
+          ...(legacy ? { passwordHash: await hashPassword(input.password) } : {}),
+        })
         .where(eq(emailUsers.id, user[0].id));
 
       const token = await createToken(user[0].id);
@@ -248,62 +330,75 @@ export const emailAuthRouter = createRouter({
     };
   }),
 
-  startTrial: publicQuery
-    .input(z.object({ email: z.string().email() }))
-    .mutation(async ({ input }) => {
-      const db = getDb();
+  startTrial: publicQuery.mutation(async ({ ctx }) => {
+    const userId = await requireEmailUserId(ctx.req.headers);
+    const db = getDb();
 
-      const user = await db
-        .select()
-        .from(emailUsers)
-        .where(eq(emailUsers.email, input.email))
-        .limit(1);
+    const user = await db
+      .select()
+      .from(emailUsers)
+      .where(eq(emailUsers.id, userId))
+      .limit(1);
 
-      if (user.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
+    if (user.length === 0 || !user[0].verified) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not signed in" });
+    }
 
-      await db
-        .update(emailUsers)
-        .set({ trialStartedAt: new Date() })
-        .where(eq(emailUsers.id, user[0].id));
+    if (user[0].trialStartedAt) {
+      throw new TRPCError({ code: "CONFLICT", message: "Your free trial has already been used" });
+    }
 
-      return { success: true, message: "3-day free trial started!" };
-    }),
+    await db
+      .update(emailUsers)
+      .set({ trialStartedAt: new Date() })
+      .where(eq(emailUsers.id, userId));
 
-  trialStatus: publicQuery
-    .input(z.object({ email: z.string().email() }))
-    .query(async ({ input }) => {
-      const db = getDb();
+    return { success: true, message: "3-day free trial started!" };
+  }),
 
-      const user = await db
-        .select()
-        .from(emailUsers)
-        .where(eq(emailUsers.email, input.email))
-        .limit(1);
+  trialStatus: publicQuery.query(async ({ ctx }) => {
+    const userId = await requireEmailUserId(ctx.req.headers);
+    const db = getDb();
 
-      if (user.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
+    const user = await db
+      .select()
+      .from(emailUsers)
+      .where(eq(emailUsers.id, userId))
+      .limit(1);
 
-      return getTrialStatus(user[0]);
-    }),
+    if (user.length === 0) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not signed in" });
+    }
+
+    return getTrialStatus(user[0]);
+  }),
 
   resendCode: publicQuery
-    .input(z.object({ email: z.string().email() }))
+    .input(z.object({ email: emailSchema }))
     .mutation(async ({ input }) => {
+      assertCanSendEmail();
       const db = getDb();
       const code = generateCode();
 
-      const result = await db
-        .update(emailUsers)
-        .set({ verificationCode: code })
-        .where(eq(emailUsers.email, input.email));
+      const user = await db
+        .select({ id: emailUsers.id, verified: emailUsers.verified })
+        .from(emailUsers)
+        .where(eq(emailUsers.email, input.email))
+        .limit(1);
 
-      if (result[0].affectedRows === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      // Same response whether or not the account exists (no enumeration)
+      if (user.length > 0 && !user[0].verified) {
+        await db
+          .update(emailUsers)
+          .set({
+            verificationCode: code,
+            verifyAttempts: 0,
+            codeExpiresAt: new Date(Date.now() + CODE_TTL_MS),
+          })
+          .where(eq(emailUsers.id, user[0].id));
+        await sendVerificationEmail(input.email, code);
       }
 
-      return { success: true, message: "New code sent", code };
+      return { success: true, message: "If that account needs verification, a new code was sent." };
     }),
 });

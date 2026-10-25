@@ -5,7 +5,7 @@ import { createRouter, publicQuery } from "../middleware";
 // We use Epic's public status API + time-based modeling for realistic data.
 
 interface FortniteStatus {
-  status: "up" | "down" | "degraded";
+  status: "up" | "down" | "degraded" | "unknown";
   playersOnline: number;
   playersInGame: number;
   regionStatus: Array<{
@@ -18,7 +18,13 @@ interface FortniteStatus {
 }
 
 // Epic Games status page (public, no key needed)
-async function fetchEpicStatus(): Promise<{ status: string; incidents: any[] } | null> {
+interface EpicStatusSummary {
+  status?: { indicator?: string; description?: string };
+  incidents?: unknown[];
+  components?: { name?: string; status?: string }[];
+}
+
+async function fetchEpicStatus(): Promise<EpicStatusSummary | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -28,7 +34,7 @@ async function fetchEpicStatus(): Promise<{ status: string; incidents: any[] } |
     );
     clearTimeout(timeout);
     if (!res.ok) return null;
-    return await res.json();
+    return (await res.json()) as EpicStatusSummary;
   } catch {
     return null;
   }
@@ -40,12 +46,16 @@ async function fetchFortniteStatus(): Promise<FortniteStatus | null> {
     // Check Epic Games overall status first
     const epicStatus = await fetchEpicStatus();
     const fortniteComponent = epicStatus?.components?.find(
-      (c: any) => c.name?.toLowerCase().includes("fortnite") ||
+      (c) => c.name?.toLowerCase().includes("fortnite") ||
                   c.name?.toLowerCase().includes("battle royale")
     );
 
-    const status = fortniteComponent?.status === "operational" ? "up" :
-                   fortniteComponent?.status === "degraded_performance" ? "degraded" : "up";
+    const componentStatus = fortniteComponent?.status;
+    const status =
+      componentStatus === "operational" ? "up" :
+      componentStatus === "degraded_performance" ? "degraded" :
+      componentStatus === "partial_outage" || componentStatus === "major_outage" ? "down" :
+      "unknown";
 
     // Estimate player counts based on time-of-day patterns
     // These are modeled after Fortnite's known concurrent player trends
@@ -196,7 +206,7 @@ export const fortniteApiRouter = createRouter({
         "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=730",
         { signal: AbortSignal.timeout(5000) }
       );
-      const steamData = await res.json();
+      const steamData = (await res.json()) as { response?: { player_count?: number } };
       const cs2Players = steamData?.response?.player_count ?? 0;
 
       return {

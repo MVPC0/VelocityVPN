@@ -7,16 +7,21 @@ import { createContext } from "./context";
 import { env } from "./lib/env";
 import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
-import proxyApp from "./proxy";
+import { rateLimit } from "./lib/rate-limit";
+import { getAuthSecret } from "./lib/auth-secret";
 import fs from "fs";
 import path from "path";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+app.use(bodyLimit({ maxSize: 1 * 1024 * 1024 }));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
-// Forward proxy endpoint (used by Chrome extension)
-app.route("/proxy", proxyApp);
+app.use("/api/trpc/*", rateLimit({ windowMs: 60_000, limit: 120 }));
+// Stricter limit for credential/verification endpoints (brute-force protection)
+const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30 });
+app.use("/api/trpc/*", (c, next) =>
+  c.req.path.includes("emailAuth.") ? authLimiter(c, next) : next(),
+);
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
@@ -74,6 +79,8 @@ function getContentType(filePath: string): string {
 export default app;
 
 if (env.isProduction) {
+  // Fail fast at API startup if the JWT signing secret is missing
+  getAuthSecret();
   const { serve } = await import("@hono/node-server");
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port }, () => {

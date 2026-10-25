@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "../middleware";
+import { createRouter, publicQuery, authedMutation } from "../middleware";
 import { getDb } from "../queries/connection";
 import { serverMonitoring, gameEvents } from "@db/schema";
-import { desc, sql, and, lte, gte, eq } from "drizzle-orm";
+import { desc, and, lte, gte, eq } from "drizzle-orm";
 
 // ─── 18 VelocityVPN Servers ───────────────────────────────────
 
@@ -118,7 +118,7 @@ async function fetchSteamPlayerCounts(): Promise<SteamPlayerData> {
           );
           clearTimeout(timeout);
           if (!res.ok) return { appId: game.appId, name: game.name, count: 0 };
-          const data = await res.json();
+          const data = (await res.json()) as { response?: { player_count?: number } };
           return { appId: game.appId, name: game.name, count: data?.response?.player_count ?? 0 };
         } catch {
           return { appId: game.appId, name: game.name, count: 0 };
@@ -253,26 +253,21 @@ function getEventMultiplier(events: GameEvent[]): number {
 
 // ─── Ping Measurement ─────────────────────────────────────────
 
-async function measurePing(target: string): Promise<number> {
-  const start = Date.now();
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    await fetch(target + "/favicon.ico?cb=" + start, {
-      method: "HEAD",
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    clearTimeout(timeout);
-  } catch {
+async function measurePing(target: string): Promise<number | null> {
+  for (const url of [target + "/favicon.ico?cb=" + Date.now(), target]) {
+    const start = Date.now();
     try {
-      const controller2 = new AbortController();
-      const timeout2 = setTimeout(() => controller2.abort(), 5000);
-      await fetch(target, { method: "HEAD", signal: controller2.signal, cache: "no-store" });
-      clearTimeout(timeout2);
-    } catch { /* silent */ }
+      await fetch(url, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(5000),
+        cache: "no-store",
+      });
+      return Math.max(1, Date.now() - start);
+    } catch {
+      // try next URL
+    }
   }
-  return Math.max(1, Date.now() - start);
+  return null;
 }
 
 // ─── Router ───────────────────────────────────────────────────
@@ -358,13 +353,16 @@ export const monitoringRouter = createRouter({
   }),
 
   // Record a real ping measurement
-  recordPing: publicQuery
-    .input(z.object({ serverId: z.number().min(1).max(18) }))
+  recordPing: authedMutation
+    .input(z.object({ serverId: z.number().int().min(1).max(18) }))
     .mutation(async ({ input }) => {
       const server = MONITORED_SERVERS.find((s) => s.id === input.serverId);
       if (!server) throw new Error("Server not found");
 
       const latency = await measurePing(server.target);
+      if (latency === null) {
+        return { serverId: server.id, latency: null, playerCount: null, loadPercent: null };
+      }
       const steamData = await fetchSteamPlayerCounts();
       const distribution = distributePlayersToServers(steamData.totalPlayers);
       const playerCount = distribution.get(server.id) ?? 50;
@@ -387,7 +385,7 @@ export const monitoringRouter = createRouter({
     .query(async ({ input }) => {
       const db = getDb();
       return db.select().from(serverMonitoring)
-        .where(sql`server_id = ${input.serverId}`)
+        .where(eq(serverMonitoring.serverId, input.serverId))
         .orderBy(desc(serverMonitoring.timestamp))
         .limit(60);
     }),
