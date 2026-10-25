@@ -432,7 +432,7 @@ const HeroSection: React.FC = () => {
     <section id="hero" className="relative w-full min-h-[100dvh] overflow-hidden">
       {!glFailed && <canvas
         ref={canvasRef}
-        className={`fixed top-0 left-0 w-full h-full transition-opacity duration-1000 ${
+        className={`fixed top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-1000 ${
           loaded ? 'opacity-100' : 'opacity-0'
         }`}
         style={{ zIndex: 1 }}
