@@ -19,5 +19,16 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Same setting as the official Vite React template: shadcn/ui files
+      // export variants/hooks next to components; this only affects HMR.
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // React Compiler advisory rule; existing effects are reported as warnings.
+      'react-hooks/set-state-in-effect': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
   },
 ])

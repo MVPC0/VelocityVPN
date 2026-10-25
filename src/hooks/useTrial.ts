@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 
 const GUEST_KEY = "guest_mode";
-const TRIAL_SHOWN_KEY = "trial_banner_shown";
 
 export type TrialState = {
   status: "guest" | "trial" | "premium" | "expired" | "no_trial";
@@ -10,18 +9,14 @@ export type TrialState = {
 };
 
 export function useTrial(isAuthenticated: boolean) {
-  const [isGuest, setIsGuest] = useState(false);
-  const [showBanner, setShowBanner] = useState(false);
+  const [guestFlag, setIsGuest] = useState(
+    () => localStorage.getItem(GUEST_KEY) === "true"
+  );
+  const isGuest = guestFlag && !isAuthenticated;
 
-  // Check if guest mode is active on mount
+  // If user logs in, clear guest mode
   useEffect(() => {
-    const guestMode = localStorage.getItem(GUEST_KEY);
-    if (guestMode === "true" && !isAuthenticated) {
-      setIsGuest(true);
-    }
-    // If user logs in, clear guest mode
     if (isAuthenticated) {
-      setIsGuest(false);
       localStorage.removeItem(GUEST_KEY);
     }
   }, [isAuthenticated]);

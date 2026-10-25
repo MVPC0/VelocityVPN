@@ -95,7 +95,7 @@ const genreColors: Record<string, string> = {
 export default function SteamGamesPanel() {
   const [games, setGames] = useState<GameData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error] = useState("");
 
   const CORS_PROXIES = [
     "https://api.allorigins.win/raw?url=",

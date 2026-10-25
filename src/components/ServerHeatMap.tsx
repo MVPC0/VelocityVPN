@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  Flame, Bot, Skull, Gamepad2, Users, Zap,
-  Globe, Crosshair, Swords, Target, Sparkles, Crown
+  Flame, Users, Zap,
+  Globe, Crosshair, Sparkles
 } from "lucide-react";
-import { VELOCITY_SERVERS, getFlag } from "@/data/velocity-servers";
+import { getFlag } from "@/data/velocity-servers";
 
 interface VPNServer {
   id: number; name: string; city: string; country: string;
@@ -82,7 +82,7 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
   const [filter, setFilter] = useState("all");
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [liveLoads, setLiveLoads] = useState<Record<number, number>>({});
-  const [lastUpdate, setLastUpdate] = useState(Date.now());
+  const [lastUpdate, setLastUpdate] = useState(() => Date.now());
 
   // Auto-fluctuate loads every 3 seconds to simulate live data
   const fluctuate = useCallback(() => {

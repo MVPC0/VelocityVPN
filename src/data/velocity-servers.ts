@@ -5,7 +5,7 @@
 // browser timing only. wgEndpoint values are public DNS IPs
 // used as placeholders - replace with a real provider endpoint.
 
-import { getServerKeyPair } from "../lib/wg-keygen";
+import { isValidWireGuardKey } from "../lib/wg-keygen";
 
 export interface VelocityServer {
   id: number;
@@ -148,9 +148,13 @@ export const REGION_LABELS: Record<string, string> = {
 // Generate a WireGuard config for a given server
 export function generateWireGuardConfig(
   server: VelocityServer,
-  clientPrivateKey: string = "<YOUR_PRIVATE_KEY>",
-  clientIp: string = "10.0.0.2/24"
+  clientPrivateKey: string,
+  clientIp: string,
+  serverPublicKey: string
 ): string {
+  if (!isValidWireGuardKey(serverPublicKey)) {
+    throw new Error("A valid WireGuard server public key is required");
+  }
   return `# ============================================================
 #  VelocityVPN - ${server.city} (${server.name})
 #  CONFIG TEMPLATE - Endpoint must be set before activating!
@@ -166,14 +170,14 @@ DNS = 1.1.1.1, 8.8.8.8
 MTU = 1420
 
 [Peer]
-PublicKey = ${getServerKeyPair(server.hostname).publicKey}
+PublicKey = ${serverPublicKey.trim()}
 AllowedIPs = 0.0.0.0/0, ::/0
 Endpoint = YOUR_SERVER_IP:51820
 PersistentKeepalive = 25`;
 }
 
-// Server public keys are now generated using real Curve25519 cryptography
-// via getServerKeyPair() from ../lib/wg-keygen
+// Server public keys must be supplied by the operator (see VITE_WG_SERVER_PUBLIC_KEYS);
+// they are never generated or derived in the browser.
 
 export function getFlag(countryCode: string): string {
   const flags: Record<string, string> = {

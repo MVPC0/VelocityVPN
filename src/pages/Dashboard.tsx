@@ -3,13 +3,13 @@ import { useNavigate } from "react-router";
 import {
   Shield, Zap, Power, Clock, ArrowDown, ArrowUp,
   Activity, Server, RefreshCw, ChevronLeft, Download,
-  Flame, Globe, Navigation, Lock, Gamepad2, ScanLine,
-  HelpCircle, Puzzle, Key, LogIn, ChevronRight, X,
+  Flame, Globe, Lock, Gamepad2, ScanLine,
+  HelpCircle, Puzzle, Key, LogIn, X,
   Smartphone, Wifi, AlertTriangle, CheckCircle2,
-  TrendingUp, Users, Copy, Check, Loader2
+  Check, Loader2
 } from "lucide-react";
 import { VELOCITY_SERVERS, generateWireGuardConfig, getFlag } from "@/data/velocity-servers";
-import { generateWireGuardPrivateKey } from "@/lib/wg-keygen";
+import { generateWireGuardPrivateKey, isValidWireGuardKey } from "@/lib/wg-keygen";
 import SteamGamesPanel from "@/components/SteamGamesPanel";
 import ServerHeatMap from "@/components/ServerHeatMap";
 import ProviderSetup from "@/components/ProviderSetup";
@@ -35,6 +35,20 @@ interface SessionRecord {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
+
+// Real server public keys must be provided by the operator, e.g.
+// VITE_WG_SERVER_PUBLIC_KEYS='{"usw-001.velocityvpn.io":"<base64 key>"}'
+function getConfiguredServerPublicKey(hostname: string): string | null {
+  try {
+    const raw = import.meta.env.VITE_WG_SERVER_PUBLIC_KEYS as string | undefined;
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, unknown>;
+    const key = map[hostname];
+    return typeof key === "string" && isValidWireGuardKey(key) ? key.trim() : null;
+  } catch {
+    return null;
+  }
+}
 
 const INITIAL_SERVERS: VPNServer[] = VELOCITY_SERVERS.map((s) => ({
   id: s.id, name: s.name, city: s.city, country: s.country,
@@ -109,7 +123,7 @@ export default function Dashboard() {
       .then((data) => {
         if (data) {
           // Store the detected IP info so we can show real connection status
-          (window as any).__vpnIpInfo = data;
+          (window as Window & { __vpnIpInfo?: unknown }).__vpnIpInfo = data;
         }
         setConnection({
           server,
@@ -118,17 +132,6 @@ export default function Dashboard() {
           protocol: server.protocol,
         });
         setServers((prev) => prev.map((s) => s.id === server.id ? { ...s, load: Math.min(100, s.load + 4) } : s));
-        setHistory((prev) => [...prev, {
-          id: `s_${Date.now()}`,
-          serverName: server.name,
-          city: server.city,
-          country: server.country,
-          connectedAt: new Date(),
-          duration: 0,
-          dataSent: 0,
-          dataReceived: 0,
-          protocol: server.protocol,
-        }]);
       })
       .catch(() => {
         // UI session only. This does not create a WireGuard tunnel.
@@ -192,11 +195,16 @@ export default function Dashboard() {
       setGeneratedKey(activeProvider.clientPrivateKey);
       return;
     }
-    // Fallback: template config (needs manual editing)
+    // Fallback: template config (needs manual editing) - only with a real server public key
     const vServer = VELOCITY_SERVERS.find((s) => s.id === connection.server.id);
     if (!vServer) return;
+    const serverPublicKey = getConfiguredServerPublicKey(vServer.hostname);
+    if (!serverPublicKey) {
+      setShowProviderRequired(true);
+      return;
+    }
     const key = generateWireGuardPrivateKey();
-    const config = generateWireGuardConfig(vServer, key, connection.assignedIp + "/32");
+    const config = generateWireGuardConfig(vServer, key, connection.assignedIp + "/32", serverPublicKey);
     const blob = new Blob([config], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -207,7 +215,7 @@ export default function Dashboard() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setGeneratedKey(key);
-  }, [connection, activeProvider]);
+  }, [connection, activeProvider, setShowProviderRequired]);
 
   return (
     <div className="min-h-screen bg-[#050507] text-white">
@@ -586,9 +594,6 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
   setShowHowTo: (v: boolean) => void;
   vpnDetector: ReturnType<typeof useVpnDetector>;
 }) {
-  const { activeProvider } = useProviderConfig();
-  const [ipData, setIpData] = useState<{ ip: string; city: string; country: string; countryCode: string; org: string } | null>(null);
-  const [ipLoading, setIpLoading] = useState(true);
   const [speedPhase, setSpeedPhase] = useState<"idle" | "running" | "done">("idle");
   const [speedResult, setSpeedResult] = useState<{ download: number; upload: number; latency: number } | null>(null);
   // Real VPN detection: 3 states
@@ -597,13 +602,6 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
   // 3. Has baseline, IP differs → PROTECTED (VPN active)
   const isProtected = vpnDetector.isVpnActive;
   const needsBaseline = !vpnDetector.hasBaseline;
-
-  useEffect(() => {
-    // Use vpnDetector's IP data instead of separate fetch
-    if (vpnDetector.currentIp) {
-      setIpLoading(false);
-    }
-  }, [vpnDetector.currentIp]);
 
   const runSpeedTest = useCallback(async () => {
     setSpeedPhase("running");
@@ -784,21 +782,39 @@ function ToolsTab({ downloadWireGuardConfig, connection, setShowQR, setShowHowTo
 
 function WireGuardQR({ serverId, onClose }: { serverId: number; onClose: () => void }) {
   const server = VELOCITY_SERVERS.find((s) => s.id === serverId);
+  const serverPublicKey = server ? getConfiguredServerPublicKey(server.hostname) : null;
   const [qrUrl, setQrUrl] = useState("");
   const [key, setKey] = useState("");
 
   useEffect(() => {
-    if (!server) return;
+    if (!server || !serverPublicKey) return;
     const k = generateWireGuardPrivateKey();
     setKey(k);
-    const config = generateWireGuardConfig(server, k);
+    const config = generateWireGuardConfig(server, k, "10.0.0.2/32", serverPublicKey);
     import("qrcode").then((QR) => {
       QR.default.toDataURL(config, { width: 280, margin: 2, color: { dark: "#ffffff", light: "#0A0A0F" } })
         .then((url: string) => setQrUrl(url)).catch(() => {});
     }).catch(() => {});
-  }, [serverId, server]);
+  }, [serverId, server, serverPublicKey]);
 
   if (!server) return null;
+
+  if (!serverPublicKey) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm" onClick={onClose}>
+        <div className="bg-[#0A0A0F] border border-[rgba(255,255,255,0.1)] rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-['Archivo'] text-base tracking-tight">WireGuard Config</h3>
+            <button onClick={onClose} className="text-[#6B7280] hover:text-white cursor-pointer bg-transparent border-0"><X size={18} /></button>
+          </div>
+          <div className="bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.2)] rounded-xl p-4 flex gap-3">
+            <AlertTriangle size={18} className="text-[#FBBF24] shrink-0 mt-0.5" />
+            <p className="text-xs text-[#9CA3AF] leading-relaxed">No server public key is configured for {server.city}. Add your WireGuard provider config to generate a working QR code.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm" onClick={onClose}>
@@ -812,7 +828,8 @@ function WireGuardQR({ serverId, onClose }: { serverId: number; onClose: () => v
           {qrUrl ? <img src={qrUrl} alt="QR" className="w-56 h-56" /> : <Loader2 size={32} className="animate-spin text-[#E85D4E]" />}
         </div>
         <button onClick={() => {
-          const config = generateWireGuardConfig(server, key || "x");
+          if (!key) return;
+          const config = generateWireGuardConfig(server, key, "10.0.0.2/32", serverPublicKey);
           const blob = new Blob([config], { type: "text/plain" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a"); a.href = url;

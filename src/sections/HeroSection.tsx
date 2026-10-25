@@ -201,7 +201,7 @@ const HeroSection: React.FC = () => {
   const globeRef = useRef<THREE.Points | null>(null);
   const cityDirsRef = useRef<THREE.Vector3[]>([]);
   const animFrameRef = useRef(0);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef(0);
   const pingRef = useRef({ t: 0, dir: new THREE.Vector3(1, 0, 0), i: 0 });
   const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
   const scrollRef = useRef(0);

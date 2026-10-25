@@ -34,41 +34,19 @@ export function derivePublicKey(privateKeyBase64: string): string {
     const keypair = nacl.box.keyPair.fromSecretKey(privateKey);
     return bufferToBase64(keypair.publicKey);
   } catch {
-    // Fallback: return a fresh keypair's public key
-    const kp = nacl.box.keyPair();
-    return bufferToBase64(kp.publicKey);
+    throw new Error("Invalid WireGuard private key");
   }
 }
 
-// ─── Server Key Management ────────────────────────────────────
-// Each VelocityVPN server has a stable key pair derived from its hostname
-// This ensures the same server always presents the same public key
+// WireGuard keys are 32 bytes, base64-encoded (44 chars ending in "=")
+export const WG_KEY_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
-function deriveServerPrivateKey(hostname: string): Uint8Array {
-  // Use a hash of the hostname to create a deterministic seed
-  const seed = new TextEncoder().encode(hostname + "_velocityvpn_seed_v1");
-  let hash = new Uint8Array(32);
-  
-  // Simple hash: XOR-fold the seed into 32 bytes
-  for (let i = 0; i < seed.length; i++) {
-    hash[i % 32] ^= seed[i];
-    hash[i % 32] = (hash[i % 32] * 31 + 17) & 0xff;
-  }
-  
-  // Clamp for Curve25519 (WireGuard spec)
-  hash[0] &= 248;
-  hash[31] &= 127;
-  hash[31] |= 64;
-  
-  return hash;
+export function isValidWireGuardKey(key: string): boolean {
+  return WG_KEY_PATTERN.test(key.trim());
 }
 
-export function getServerKeyPair(hostname: string): WireGuardKeyPair {
-  const privateKeyBytes = deriveServerPrivateKey(hostname);
-  const privateKey = bufferToBase64(privateKeyBytes);
-  const publicKey = derivePublicKey(privateKey);
-  return { privateKey, publicKey };
-}
+// Server public keys must come from the real WireGuard server (`wg show <if> public-key`).
+// They are never derived client-side.
 
 // ─── Helpers ──────────────────────────────────────────────────
 

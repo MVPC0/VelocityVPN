@@ -128,6 +128,7 @@ const PingTestSection: React.FC = () => {
   const [userCity, setUserCity] = useState<string>('');
   const sparkleCanvasRef = useRef<HTMLCanvasElement>(null);
   const timeoutsRef = useRef<number[]>([]);
+  const flashIntervalRef = useRef<number | null>(null);
   const hasAutoRun = useRef(false);
 
   const youPos = useMemo(() => {
@@ -156,6 +157,10 @@ const PingTestSection: React.FC = () => {
   const clearAllTimeouts = useCallback(() => {
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
+    if (flashIntervalRef.current !== null) {
+      clearInterval(flashIntervalRef.current);
+      flashIntervalRef.current = null;
+    }
   }, []);
 
   const runPingTest = useCallback(async (server: Server) => {
@@ -181,6 +186,7 @@ const PingTestSection: React.FC = () => {
       const flashInterval = window.setInterval(() => {
         setFlashingPing(Math.floor(Math.random() * 180) + 20);
       }, 80);
+      flashIntervalRef.current = flashInterval;
 
       const progressStart = Date.now();
       const animateProgress = () => {
@@ -191,6 +197,7 @@ const PingTestSection: React.FC = () => {
           requestAnimationFrame(animateProgress);
         } else {
           clearInterval(flashInterval);
+          if (flashIntervalRef.current === flashInterval) flashIntervalRef.current = null;
         }
       };
       requestAnimationFrame(animateProgress);

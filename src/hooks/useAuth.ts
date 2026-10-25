@@ -6,9 +6,18 @@ export type TrialStatus = {
   expired: boolean;
 };
 
+export type AuthUser = {
+  id: number;
+  name: string | null;
+  email: string | null;
+};
+
 // Standalone auth hook - no backend required
 export function useAuth() {
-  const trial: TrialStatus = { status: "guest", daysLeft: null, expired: false };
+  const trial = useMemo<TrialStatus>(
+    () => ({ status: "guest", daysLeft: null, expired: false }),
+    []
+  );
 
   const logout = useCallback(() => {
     localStorage.removeItem("email_auth_token");
@@ -18,7 +27,7 @@ export function useAuth() {
 
   return useMemo(
     () => ({
-      user: null,
+      user: null as AuthUser | null,
       isAuthenticated: false,
       isLoading: false,
       trial,
