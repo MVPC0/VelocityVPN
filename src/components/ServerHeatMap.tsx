@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import {
-  Users, Zap, Globe, Crosshair
+  Zap, Globe, Crosshair
 } from "lucide-react";
 import { getFlag } from "@/data/velocity-servers";
 import { formatSpreadPm } from "@/lib/latency";
@@ -116,10 +116,6 @@ export default function ServerHeatMap({ servers, onSelect }: Props) {
                     <span className="flex items-center gap-1">
                       <Zap size={9} className="text-[#4ADE80]" />
                       {server.latency !== null ? `${server.latency}ms` : "--"}
-                    </span>
-                    <span className="flex items-center gap-1" title="No player count">
-                      <Users size={9} />
-                      —
                     </span>
                     <span className="flex items-center gap-1">
                       <Crosshair size={9} />
